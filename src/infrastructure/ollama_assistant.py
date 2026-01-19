@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Iterable, List
+import os
+from typing import Callable, Iterable, List, Optional
 
 import ollama
 
@@ -11,20 +12,40 @@ from ..application.ports.assistant import Assistant
 from ..domain.message import Message, TextMessage
 
 
+def _resolve_host(host: Optional[str]) -> str:
+    resolved = host or os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    if not resolved.startswith(("http://", "https://")):
+        resolved = f"http://{resolved}"
+    return resolved
+
+
+def _default_client_factory(host: Optional[str]) -> ollama.Client:
+    return ollama.Client(host=_resolve_host(host))
+
+
 class OllamaAssistant(Assistant):
-    def __init__(self, model: str = "llama3") -> None:
+    def __init__(
+        self,
+        model: str = "llama3",
+        host: Optional[str] = None,
+        client_factory: Optional[Callable[[Optional[str]], ollama.Client]] = None,
+    ) -> None:
         self._model = model
+        factory = client_factory or _default_client_factory
+        self._client = factory(host)
 
     def infer(self, request: AssistantRequest) -> AssistantResponse:
         messages = self._build_messages(request.messages)
         try:
-            response = ollama.chat(model=self._model, messages=messages)
+            response = self._client.chat(model=self._model, messages=messages)
         except ollama.ResponseError as exc:
             message = str(exc)
             status_code = getattr(exc, "status_code", None)
             if status_code == 404 and "model" in message.lower() and "not found" in message.lower():
                 raise ModelNotAvailableError(self._model, message) from exc
             raise LlmProviderError("ollama", message, status_code) from exc
+        except Exception as exc:
+            raise LlmProviderError("ollama", str(exc)) from exc
         content = response["message"]["content"]
         return AssistantResponse(
             kind="message",

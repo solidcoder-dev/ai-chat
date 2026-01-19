@@ -15,6 +15,7 @@ Python interfaces and domain models for the chat system described in
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 2) Start Postgres + Ollama (llama3):
@@ -30,4 +31,11 @@ docker compose up -d
 
 ```bash
 docker exec -it ai-chat-ollama ollama pull llama3
+```
+
+## Tests (Docker + testcontainers)
+Run tests with Docker running locally:
+
+```bash
+pytest
 ```
