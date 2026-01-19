@@ -32,6 +32,20 @@ services:
     volumes:
       - ollama_data:/root/.ollama
 
+  api:
+    build: .
+    container_name: ai-chat-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:0.5b
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - ollama
+
 volumes:
   postgres_data:
   ollama_data:

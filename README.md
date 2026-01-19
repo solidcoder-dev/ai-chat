@@ -46,3 +46,43 @@ Start the chat CLI:
 ```bash
 python main.py
 ```
+
+## Run (WebSocket API)
+Start the FastAPI server:
+
+```bash
+uvicorn src.infrastructure.websocket_endpoint:app --host 0.0.0.0 --port 8000
+```
+
+WebSocket endpoint:
+- `ws://localhost:8000/ws`
+
+Message format:
+```json
+{"chat_id": "demo", "text": "Hello"}
+```
+
+## Run (Docker)
+Build and run the WebSocket API container:
+
+```bash
+docker build -t ai-chat-ws .
+docker run --rm -p 8000:8000 ai-chat-ws
+```
+
+## Run (Docker Compose)
+Bring up the full stack (Postgres + Ollama + API):
+
+```bash
+docker compose up -d
+```
+
+WebSocket endpoint:
+- `ws://localhost:8000/ws`
+
+## CLI (WebSocket client)
+Connect to the WebSocket API:
+
+```bash
+python cli.py ws://localhost:8000/ws
+```
