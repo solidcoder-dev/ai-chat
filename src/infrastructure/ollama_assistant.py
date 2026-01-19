@@ -6,6 +6,7 @@ import ollama
 
 from ..application.dtos.assistant_request import AssistantRequest
 from ..application.dtos.assistant_response import AssistantResponse
+from ..application.errors import LlmProviderError, ModelNotAvailableError
 from ..application.ports.assistant import Assistant
 from ..domain.message import Message, TextMessage
 
@@ -16,7 +17,14 @@ class OllamaAssistant(Assistant):
 
     def infer(self, request: AssistantRequest) -> AssistantResponse:
         messages = self._build_messages(request.messages)
-        response = ollama.chat(model=self._model, messages=messages)
+        try:
+            response = ollama.chat(model=self._model, messages=messages)
+        except ollama.ResponseError as exc:
+            message = str(exc)
+            status_code = getattr(exc, "status_code", None)
+            if status_code == 404 and "model" in message.lower() and "not found" in message.lower():
+                raise ModelNotAvailableError(self._model, message) from exc
+            raise LlmProviderError("ollama", message, status_code) from exc
         content = response["message"]["content"]
         return AssistantResponse(
             kind="message",

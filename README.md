@@ -25,3 +25,9 @@ docker compose up -d
 
 3) Environment variables:
 - Copy `.env.example` to `.env` if you need custom credentials.
+
+4) Pull the Ollama model (first time only):
+
+```bash
+docker exec -it ai-chat-ollama ollama pull llama3
+```
