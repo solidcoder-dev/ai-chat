@@ -30,7 +30,7 @@ docker compose up -d
 4) Pull the Ollama model (first time only):
 
 ```bash
-docker exec -it ai-chat-ollama ollama pull llama3
+docker exec -it ai-chat-ollama ollama pull qwen2.5:0.5b
 ```
 
 ## Tests (Docker + testcontainers)
@@ -38,4 +38,11 @@ Run tests with Docker running locally:
 
 ```bash
 pytest
+```
+
+## Run (CLI)
+Start the chat CLI:
+
+```bash
+python main.py
 ```
