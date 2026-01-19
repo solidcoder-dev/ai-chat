@@ -1,6 +1,6 @@
 from src.application.dtos.tool_spec import ToolSpec
 from src.infrastructure.tool_access_policy import AllowAllToolAccessPolicy
-from src.infrastructure.tool_catalog import InMemoryToolCatalog
+from src.infrastructure.tool_catalog import InMemoryToolCatalog, create_default_tool_catalog
 from src.infrastructure.tool_registry import InMemoryToolRegistry
 
 
@@ -13,6 +13,13 @@ def test_in_memory_tool_catalog():
     specs = [ToolSpec(name="t1", description="d1", parameters_schema={})]
     catalog = InMemoryToolCatalog(specs)
     assert catalog.list_all_tool_specs() == specs
+
+
+def test_default_tool_catalog_contains_known_tools():
+    catalog = create_default_tool_catalog()
+    names = [spec.name for spec in catalog.list_all_tool_specs()]
+    assert "inspect_schema" in names
+    assert "sql_execute" in names
 
 
 def test_in_memory_tool_registry():
