@@ -9,11 +9,13 @@ from ..application.ports.tool_access_policy import ToolAccessPolicy
 from ..application.ports.tool_catalog import ToolCatalog
 from ..application.ports.tool_registry import ToolRegistry
 from ..application.services.logging_assistant import LoggingAssistant
+from ..application.services.metrics_assistant import MetricsAssistant
 from ..application.services.orchestrated_chat_engine import OrchestratedChatEngine
 from ..domain.repositories.chat_repo import ChatRepo
 from ..infrastructure.data_catalog import PostgresDataCatalog
 from ..infrastructure.inspect_schema_tool import InspectSchemaTool
 from ..infrastructure.ollama_assistant import OllamaAssistant
+from ..infrastructure.json_file_metrics import JsonFileMetrics
 from ..infrastructure.postgres_chat_repo import PostgresChatRepo
 from ..infrastructure.query_executor import SqlAlchemyQueryExecutor
 from ..infrastructure.sql_execution_tool import SqlExecutionTool
@@ -47,7 +49,10 @@ def build_chat_engine(
     tool_catalog: ToolCatalog = create_default_tool_catalog()
     tool_access_policy: ToolAccessPolicy = AllowAllToolAccessPolicy()
 
-    assistant = LoggingAssistant(OllamaAssistant(model=ollama_model), StdLogger())
+    assistant = MetricsAssistant(
+        LoggingAssistant(OllamaAssistant(model=ollama_model), StdLogger()),
+        JsonFileMetrics(),
+    )
 
     return OrchestratedChatEngine(
         chat_repo=chat_repo,
