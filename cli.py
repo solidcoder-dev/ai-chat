@@ -5,20 +5,29 @@ import sys
 import websockets
 
 
+async def _send_once(url: str, chat_id: str, text: str) -> str:
+    payload = {"chat_id": chat_id, "text": text}
+    async with websockets.connect(url, ping_interval=None, ping_timeout=None) as websocket:
+        await websocket.send(json.dumps(payload))
+        response = await websocket.recv()
+    data = json.loads(response)
+    return data.get("content", "")
+
+
 async def chat_loop(url: str) -> None:
-    async with websockets.connect(url) as websocket:
-        print("Connected. Type 'exit' to quit.")
-        while True:
-            user_input = input("> ").strip()
-            if user_input.lower() in {"exit", "quit"}:
-                break
-            if not user_input:
-                continue
-            payload = {"chat_id": "cli", "text": user_input}
-            await websocket.send(json.dumps(payload))
-            response = await websocket.recv()
-            data = json.loads(response)
-            print(data.get("content", ""))
+    chat_id = "cli"
+    print("Connected. Type 'exit' to quit.")
+    while True:
+        user_input = input("> ").strip()
+        if user_input.lower() in {"exit", "quit"}:
+            break
+        if not user_input:
+            continue
+        try:
+            content = await _send_once(url, chat_id, user_input)
+        except websockets.exceptions.ConnectionClosedError:
+            content = await _send_once(url, chat_id, user_input)
+        print(content)
 
 
 def main() -> None:

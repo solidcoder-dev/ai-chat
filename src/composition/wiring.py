@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from ..application.ports.tool_access_policy import ToolAccessPolicy
 from ..application.ports.tool_catalog import ToolCatalog
 from ..application.ports.tool_registry import ToolRegistry
+from ..application.services.logging_assistant import LoggingAssistant
 from ..application.services.orchestrated_chat_engine import OrchestratedChatEngine
 from ..domain.repositories.chat_repo import ChatRepo
 from ..infrastructure.data_catalog import PostgresDataCatalog
@@ -16,6 +17,7 @@ from ..infrastructure.ollama_assistant import OllamaAssistant
 from ..infrastructure.postgres_chat_repo import PostgresChatRepo
 from ..infrastructure.query_executor import SqlAlchemyQueryExecutor
 from ..infrastructure.sql_execution_tool import SqlExecutionTool
+from ..infrastructure.std_logger import StdLogger
 from ..infrastructure.tool_access_policy import AllowAllToolAccessPolicy
 from ..infrastructure.tool_catalog import create_default_tool_catalog
 from ..infrastructure.tool_registry import InMemoryToolRegistry
@@ -45,7 +47,7 @@ def build_chat_engine(
     tool_catalog: ToolCatalog = create_default_tool_catalog()
     tool_access_policy: ToolAccessPolicy = AllowAllToolAccessPolicy()
 
-    assistant = OllamaAssistant(model=ollama_model)
+    assistant = LoggingAssistant(OllamaAssistant(model=ollama_model), StdLogger())
 
     return OrchestratedChatEngine(
         chat_repo=chat_repo,

@@ -62,6 +62,7 @@ Message format:
 {"chat_id": "demo", "text": "Hello"}
 ```
 
+
 ## Run (Docker)
 Build and run the WebSocket API container:
 

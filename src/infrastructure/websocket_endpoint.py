@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+import logging
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 
 from ..composition.wiring import build_chat_engine
 
+
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 _engine = build_chat_engine()
@@ -25,5 +29,12 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 continue
             response = await run_in_threadpool(_engine.handle_user_message, chat_id, text)
             await websocket.send_json({"chat_id": response.chat_id, "content": response.content})
-    except WebSocketDisconnect:
-        return
+    except WebSocketDisconnect as exc:
+        logging.info("WebSocket client disconnected: code=%s", getattr(exc, "code", None))
+    except Exception:
+        logging.exception("WebSocket handler crashed")
+        try:
+            await websocket.close(code=1011)
+        except Exception:
+            pass
+
