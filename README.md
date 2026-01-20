@@ -51,7 +51,7 @@ python main.py
 Start the FastAPI server:
 
 ```bash
-uvicorn src.infrastructure.websocket_endpoint:app --host 0.0.0.0 --port 8000
+uvicorn src.presentation.websocket_endpoint:app --host 0.0.0.0 --port 8000
 ```
 
 WebSocket endpoint:

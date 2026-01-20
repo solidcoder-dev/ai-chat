@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict
-
 import logging
+from typing import Any, Dict
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
@@ -37,4 +36,3 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             await websocket.close(code=1011)
         except Exception:
             pass
-

@@ -12,4 +12,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.infrastructure.websocket_endpoint:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.presentation.websocket_endpoint:app", "--host", "0.0.0.0", "--port", "8000"]
