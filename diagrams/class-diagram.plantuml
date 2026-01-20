@@ -1,0 +1,220 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+' =========================
+' Interfaces
+' =========================
+
+interface ChatEngine {
+  +handleUserMessage(chatId: String, text: String): ChatResponse
+}
+
+interface ChatRepo {
+  +loadChat(chatId: String): Chat
+  +saveChat(chat: Chat): void
+}
+
+interface Assistant {
+  +infer(request: AssistantRequest): AssistantResponse
+}
+
+interface ToolRegistry {
+  +getTool(name: String): Tool
+}
+
+interface ToolCatalog {
+  +listAllToolSpecs(): List<ToolSpec>
+}
+
+interface ToolAccessPolicy {
+  +getAllowedTools(assistantId: String, context: Object, allSpecs: List<ToolSpec>): List<ToolSpec>
+}
+
+interface Tool {
+  +run(args: Map<String, Object>): Object
+}
+
+interface DataCatalog {
+  +getTableForDataset(name: String): TableInfo
+  +getSchema(tableName: String): Schema
+}
+
+interface QueryExecutor {
+  +execute(sql: String): QueryResult
+}
+
+' =========================
+' Clases concretas (V1)
+' =========================
+
+class WebSocketEndpoint {
+  +handleConnection()
+}
+
+class OrchestratedChatEngine {
+  -chatRepo: ChatRepo
+  -assistant: Assistant
+  -toolRegistry: ToolRegistry
+  -toolCatalog: ToolCatalog
+  -toolAccessPolicy: ToolAccessPolicy
+  +handleUserMessage(chatId: String, text: String): ChatResponse
+}
+
+class PostgresChatRepo {
+  +loadChat(chatId: String): Chat
+  +saveChat(chat: Chat): void
+}
+
+' --- Hoja (Leaf) ---
+class OllamaAssistant {
+  +infer(request: AssistantRequest): AssistantResponse
+}
+
+' --- Composite ---
+class MultiAssistant {
+  -children: List<Assistant>
+  +infer(request: AssistantRequest): AssistantResponse
+  +addAssistant(child: Assistant): void
+  +removeAssistant(child: Assistant): void
+}
+
+class InMemoryToolRegistry {
+  -tools: Map<String, Tool>
+  +getTool(name: String): Tool
+}
+
+class InMemoryToolCatalog {
+  +listAllToolSpecs(): List<ToolSpec>
+}
+
+class AllowAllToolAccessPolicy {
+  +getAllowedTools(assistantId: String, context: Object, allSpecs: List<ToolSpec>): List<ToolSpec>
+}
+
+class InspectSchemaTool {
+  -dataCatalog: DataCatalog
+  +run(args: Map<String, Object>): Object
+}
+
+class SqlExecutionTool {
+  -queryExecutor: QueryExecutor
+  +run(args: Map<String, Object>): Object
+}
+
+class PostgresDataCatalog {
+  +getTableForDataset(name: String): TableInfo
+  +getSchema(tableName: String): Schema
+}
+
+class SqlAlchemyQueryExecutor {
+  +execute(sql: String): QueryResult
+}
+
+class LoggingAssistant {
+  -inner: Assistant
+  +infer(request: AssistantRequest): AssistantResponse
+}
+
+' =========================
+' Dominio: Chat
+' =========================
+
+class Chat {
+  -id: String
+  -messages: List<Message>
+  +addMessage(role: String, content: String): void
+  +getMessages(): List<Message>
+}
+
+class Message {
+  -role: String
+  -content: String
+}
+
+' =========================
+' DTOs / Value Objects
+' =========================
+
+class ChatResponse {
+  +chatId: String
+  +content: String
+  +meta: Map<String, Object>
+}
+
+class AssistantRequest {
+  +messages: List<Message>
+  +tools: List<ToolSpec>
+}
+
+class AssistantResponse {
+  +kind: String        ' "message" | "tool_call"
+  +content: String
+  +toolName: String
+  +toolArgs: Map<String, Object>
+}
+
+class ToolSpec {
+  +name: String
+  +description: String
+  +parametersSchema: Object
+}
+
+class TableInfo {
+  +datasetName: String
+  +tableName: String
+}
+
+class Schema {
+  +columns: List<String>
+}
+
+class QueryResult {
+  +rows: List<Map<String, Object>>
+}
+
+
+' =========================
+' Relaciones
+' =========================
+
+' Endpoint depende de ChatEngine
+WebSocketEndpoint ..> ChatEngine : usa
+
+' Implementaciones V1 realizan interfaces
+OrchestratedChatEngine ..|> ChatEngine
+PostgresChatRepo ..|> ChatRepo
+OllamaAssistant ..|> Assistant
+MultiAssistant ..|> Assistant
+LoggingAssistant ..|> Assistant
+InMemoryToolRegistry ..|> ToolRegistry
+InMemoryToolCatalog ..|> ToolCatalog
+AllowAllToolAccessPolicy ..|> ToolAccessPolicy
+InspectSchemaTool ..|> Tool
+SqlExecutionTool ..|> Tool
+PostgresDataCatalog ..|> DataCatalog
+SqlAlchemyQueryExecutor ..|> QueryExecutor
+
+' ChatEngineV1 compone sus dependencias principales
+OrchestratedChatEngine *-- ChatRepo : chatRepo
+OrchestratedChatEngine *-- Assistant : assistant
+OrchestratedChatEngine *-- ToolRegistry : toolRegistry
+OrchestratedChatEngine *-- ToolCatalog : toolCatalog
+OrchestratedChatEngine *-- ToolAccessPolicy : toolAccessPolicy
+
+' Repo trabaja con Chat
+PostgresChatRepo --> Chat
+
+' Chat compone mensajes
+Chat *-- "messages" Message
+
+' Registry agrega tools
+InMemoryToolRegistry o-- Tool : tools
+
+' Tools de datos agregan sus dependencias
+InspectSchemaTool o-- DataCatalog : dataCatalog
+SqlExecutionTool  o-- QueryExecutor : queryExecutor
+
+' Composite pattern: MultiAssistantV1 compone otros Assistant
+MultiAssistant *-- "children" Assistant
+
+@enduml
