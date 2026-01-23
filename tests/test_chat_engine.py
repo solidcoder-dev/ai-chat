@@ -45,7 +45,7 @@ def test_chat_engine_message_response():
         tool_access_policy=AllowAllToolAccessPolicy(),
     )
 
-    response = engine.handle_user_message("chat-1", "hi")
+    response = engine.handle_user_message("chat-1", "hi", user_id="user-1")
     assert response.content == "hello"
 
 
@@ -76,6 +76,6 @@ def test_chat_engine_tool_call_flow():
         tool_access_policy=AllowAllToolAccessPolicy(),
     )
 
-    response = engine.handle_user_message("chat-2", "ping")
+    response = engine.handle_user_message("chat-2", "ping", user_id="user-1")
     assert response.content == "pong"
     assert len(assistant.requests) == 2

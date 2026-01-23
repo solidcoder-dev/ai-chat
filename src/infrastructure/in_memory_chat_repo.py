@@ -8,8 +8,11 @@ class InMemoryChatRepo(ChatRepo):
     def __init__(self) -> None:
         self._chats: Dict[str, Chat] = {}
 
-    def load_chat(self, chat_id: str) -> Chat:
-        return self._chats.get(chat_id, Chat(chat_id))
+    def load_chat(self, chat_id: str, user_id: str | None = None) -> Chat:
+        chat = self._chats.get(chat_id)
+        if chat is not None:
+            return chat
+        return Chat(chat_id, user_id=user_id)
 
     def save_chat(self, chat: Chat) -> None:
         self._chats[chat.id] = chat

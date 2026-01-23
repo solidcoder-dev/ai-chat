@@ -17,8 +17,8 @@ class SimpleChatEngine(ChatEngine):
         self._chat_repo = chat_repo
         self._assistant = assistant
 
-    def handle_user_message(self, chat_id: str, text: str) -> ChatResponse:
-        chat = self._chat_repo.load_chat(chat_id)
+    def handle_user_message(self, chat_id: str, text: str, user_id: str | None = None) -> ChatResponse:
+        chat = self._chat_repo.load_chat(chat_id, user_id=user_id)
         chat.add_message(self._make_message(role="user", text=text))
 
         request = AssistantRequest(messages=chat.get_messages(), tools=[])

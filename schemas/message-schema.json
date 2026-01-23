@@ -4,11 +4,16 @@
   "title": "MessageEvent",
   "type": "object",
   "additionalProperties": false,
-  "required": ["type", "role", "created_at", "content"],
+  "required": ["type", "message_id", "role", "created_at", "content"],
   "properties": {
     "type": {
       "const": "message",
       "description": "Event discriminator."
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this message event."
     },
     "role": {
       "type": "string",
@@ -20,12 +25,22 @@
       "format": "date-time",
       "description": "ISO 8601 timestamp."
     },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier for the request that produced this message."
+    },
+    "response_to": {
+      "type": "string",
+      "minLength": 1,
+      "description": "message_id that this message responds to."
+    },
     "content": {
       "$ref": "#/$defs/MessageContent"
     },
     "_meta": {
       "$ref": "#/$defs/Meta",
-      "description": "Instrumentation and operational metadata (not user-facing content)."
+      "description": "Metadata for observability. Fields: client_msg_id, request_id, trace_id, model, agent_id, agent_version, system_prompt_id, timing_ms, tokens."
     }
   },
   "allOf": [
@@ -150,6 +165,7 @@
       }
     },
 
+
     "ToolCallItem": {
       "type": "object",
       "additionalProperties": false,
@@ -192,10 +208,10 @@
       }
     },
 
-    "FileRef": {
+    "FileData": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source", "media_type", "uri"],
+      "required": ["source", "media_type", "uri", "filename"],
       "properties": {
         "source": {
           "type": "string",
@@ -210,6 +226,17 @@
         "uri": {
           "type": "string",
           "description": "If source=uri, an absolute URI. If source=base64, the base64 payload without a data: prefix."
+        },
+        "filename": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Original file name (for display/download)."
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "File size in bytes (if known)."
         }
       },
       "allOf": [
@@ -244,26 +271,6 @@
       ]
     },
 
-    "FileData": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["ref", "filename"],
-      "properties": {
-        "ref": { "$ref": "#/$defs/FileRef" },
-        "filename": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512,
-          "description": "Original file name (for display/download)."
-        },
-        "bytes": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "File size in bytes (if known)."
-        }
-      }
-    },
-
     "ImageData": {
       "allOf": [
         { "$ref": "#/$defs/FileData" },
@@ -271,12 +278,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "ref": {
-              "properties": {
-                "media_type": { "pattern": "^image\\/(png|jpeg|webp)$" }
-              },
-              "required": ["media_type"]
-            },
+            "media_type": { "pattern": "^image\\/(png|jpeg|webp)$" },
             "width": {
               "type": "integer",
               "minimum": 1,
@@ -300,12 +302,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "ref": {
-              "properties": {
-                "media_type": { "pattern": "^audio\\/(mpeg|mp4|wav|webm|ogg)$" }
-              },
-              "required": ["media_type"]
-            },
+            "media_type": { "pattern": "^audio\\/(mpeg|mp4|wav|webm|ogg)$" },
             "duration_ms": {
               "type": "integer",
               "minimum": 1,
@@ -324,12 +321,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "ref": {
-              "properties": {
-                "media_type": { "pattern": "^video\\/(mp4|webm|ogg)$" }
-              },
-              "required": ["media_type"]
-            },
+            "media_type": { "pattern": "^video\\/(mp4|webm|ogg)$" },
             "duration_ms": {
               "type": "integer",
               "minimum": 1,
@@ -359,6 +351,10 @@
         "args": {
           "type": "object",
           "description": "Structured tool arguments. Tool-specific validation is handled at the application layer."
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional user-facing label for this tool step."
         }
       }
     },
@@ -379,13 +375,17 @@
           "description": "Execution outcome."
         },
         "result": {
-          "description": "Tool output payload (present when status=ok).",
+          "description": "Tool output payload (present when status=ok). Can include artifact_id for external data.",
           "type": ["object", "array", "string", "number", "boolean", "null"]
         },
         "error": {
           "description": "Serialized error payload (present when status=error).",
           "type": "object",
           "additionalProperties": true
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional user-facing label for this tool step."
         }
       },
       "allOf": [
@@ -399,6 +399,7 @@
         }
       ]
     },
+
 
     "Meta": {
       "type": "object",
@@ -419,6 +420,19 @@
         "model": {
           "type": "string",
           "description": "Model identifier used to generate assistant content."
+        },
+        "agent_id": {
+          "type": "string",
+          "description": "Agent identifier used to generate assistant content."
+        },
+        "agent_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$",
+          "description": "Semantic version of the agent."
+        },
+        "system_prompt_id": {
+          "type": "string",
+          "description": "System prompt identifier tied to this message."
         },
         "timing_ms": {
           "type": "object",

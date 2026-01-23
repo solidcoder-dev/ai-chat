@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/conversation-aggregate/1.0.0/conversation-aggregate.json",
+  "title": "ConversationAggregate",
+  "description": "Read model that aggregates a conversation and its ordered message history.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["conversation", "messages", "systemPrompt"],
+  "properties": {
+    "conversation": {
+      "$ref": "https://example.com/schemas/conversation/1.0.0/conversation.json"
+    },
+    "systemPrompt": {
+      "$ref": "https://example.com/schemas/system-prompt/1.0.0/system-prompt.json"
+    },
+    "messages": {
+      "type": "array",
+      "minItems": 0,
+      "description": "Ordered list of message events belonging to the conversation.",
+      "items": {
+        "$ref": "https://example.com/schemas/message-event/2.3.1/message-event.json"
+      }
+    }
+  }
+}

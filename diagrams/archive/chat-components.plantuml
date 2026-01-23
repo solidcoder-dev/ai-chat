@@ -1,0 +1,44 @@
+@startuml
+title Chat Architecture with AI Agents (Simple) [Archived]
+left to right direction
+
+actor "User" as User
+
+package "Frontend (UI)" {
+  [Maitre Chat]
+  [Consultations Chat]
+  [BI Chat]
+  [Other Chats]
+}
+
+package "Chat Service" {
+  [Chat Manager]
+}
+
+database "Database" as DB
+
+package "AI Agent Services" {
+  [Maitre Agent]
+  [Consultations Agent]
+  [BI Agent]
+  [Other Agents]
+}
+
+User --> [Maitre Chat]
+User --> [Consultations Chat]
+User --> [BI Chat]
+User --> [Other Chats]
+
+[Maitre Chat] <--> [Maitre Agent] : WebSocket
+[Consultations Chat] <--> [Consultations Agent] : WebSocket
+[BI Chat] <--> [BI Agent] : WebSocket
+[Other Chats] <--> [Other Agents] : WebSocket
+
+[Maitre Agent] --> [Chat Manager] : HTTP
+[Consultations Agent] --> [Chat Manager] : HTTP
+[BI Agent] --> [Chat Manager] : HTTP
+[Other Agents] --> [Chat Manager] : HTTP
+
+[Chat Manager] --> DB
+
+@enduml

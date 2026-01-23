@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/message-event/2.3.1/message-event.json",
+  "title": "MessageEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "messageId", "conversationId", "seq", "role", "createdAt", "content"],
+  "properties": {
+    "type": {
+      "const": "message",
+      "description": "Event discriminator."
+    },
+    "messageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Stable identifier for this message event."
+    },
+    "conversationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Stable total order within the conversation."
+    },
+    "role": {
+      "type": "string",
+      "enum": ["user", "assistant", "system"]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Identifier for the request that produced this message."
+    },
+    "responseTo": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "MessageId that this message responds to."
+    },
+    "content": {
+      "$ref": "#/$defs/MessageContent"
+    },
+    "_meta": {
+      "$ref": "#/$defs/Meta",
+      "description": "Metadata for observability. Fields: clientMsgId, requestId, traceId, model, agentId, agentVersion, systemPromptId, timingMs, tokens."
+    }
+  },
+
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "content": {
+            "properties": {
+              "items": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "const": "tool_result" }
+                  },
+                  "required": ["type"]
+                }
+              }
+            },
+            "required": ["items"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "content": {
+            "properties": {
+              "items": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "const": "tool_call" }
+                  },
+                  "required": ["type"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+
+  "$defs": {
+    "MessageContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Item" }
+        }
+      }
+    },
+
+    "Item": {
+      "oneOf": [
+        { "$ref": "#/$defs/TextItem" },
+        { "$ref": "#/$defs/ImageItem" },
+        { "$ref": "#/$defs/AudioItem" },
+        { "$ref": "#/$defs/VideoItem" },
+        { "$ref": "#/$defs/FileItem" },
+        { "$ref": "#/$defs/ToolCallItem" },
+        { "$ref": "#/$defs/ToolResultItem" }
+      ]
+    },
+
+    "TextItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "renderable", "data"],
+      "properties": {
+        "type": { "const": "text" },
+        "renderable": { "const": true },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["text"],
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100000
+            }
+          }
+        }
+      }
+    },
+
+    "ImageItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "renderable", "data"],
+      "properties": {
+        "type": { "const": "image" },
+        "renderable": { "const": true },
+        "data": { "$ref": "#/$defs/ImageData" }
+      }
+    },
+
+    "AudioItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "renderable", "data"],
+      "properties": {
+        "type": { "const": "audio" },
+        "renderable": { "const": true },
+        "data": { "$ref": "#/$defs/AudioData" }
+      }
+    },
+
+    "VideoItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "renderable", "data"],
+      "properties": {
+        "type": { "const": "video" },
+        "renderable": { "const": true },
+        "data": { "$ref": "#/$defs/VideoData" }
+      }
+    },
+
+    "FileItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "renderable", "data"],
+      "properties": {
+        "type": { "const": "file" },
+        "renderable": { "const": true },
+        "data": { "$ref": "#/$defs/FileData" }
+      }
+    },
+
+
+    "ToolCallItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "renderable", "data"],
+      "properties": {
+        "type": { "const": "tool_call" },
+        "renderable": { "const": false },
+        "data": { "$ref": "#/$defs/ToolCallData" }
+      }
+    },
+
+    "ToolResultItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "renderable", "data"],
+      "properties": {
+        "type": { "const": "tool_result" },
+        "renderable": { "const": false },
+        "data": { "$ref": "#/$defs/ToolResultData" }
+      }
+    },
+
+    "FileData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "mediaType", "uri", "filename"],
+      "properties": {
+        "source": { "type": "string", "enum": ["uri", "base64"] },
+        "mediaType": { "type": "string" },
+        "uri": { "type": "string" },
+        "filename": { "type": "string" },
+        "bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "ImageData": {
+      "allOf": [
+        { "$ref": "#/$defs/FileData" },
+        {
+          "properties": {
+            "mediaType": {
+              "pattern": "^image\\/(png|jpeg|webp)$"
+            },
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+
+    "AudioData": {
+      "allOf": [
+        { "$ref": "#/$defs/FileData" },
+        {
+          "properties": {
+            "mediaType": {
+              "pattern": "^audio\\/(mpeg|mp4|wav|webm|ogg)$"
+            },
+            "durationMs": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+
+    "VideoData": {
+      "allOf": [
+        { "$ref": "#/$defs/FileData" },
+        {
+          "properties": {
+            "mediaType": {
+              "pattern": "^video\\/(mp4|webm|ogg)$"
+            },
+            "durationMs": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+
+    "ToolCallData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["callId", "name", "args"],
+      "properties": {
+        "callId": { "type": "string" },
+        "name": { "type": "string" },
+        "args": { "type": "object" },
+        "label": { "type": "string" }
+      }
+    },
+
+    "ToolResultData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["callId", "status"],
+      "properties": {
+        "callId": { "type": "string" },
+        "status": { "type": "string", "enum": ["ok", "error"] },
+        "result": {
+          "description": "Tool output payload (present when status=ok). Can include artifactId for external data."
+        },
+        "error": { "type": "object" },
+        "label": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "ok" } } },
+          "then": { "required": ["result"] }
+        },
+        {
+          "if": { "properties": { "status": { "const": "error" } } },
+          "then": { "required": ["error"] }
+        }
+      ]
+    },
+
+    "Meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientMsgId": { "type": "string" },
+        "requestId": { "type": "string" },
+        "traceId": { "type": "string" },
+        "model": { "type": "string" },
+        "agentId": { "type": "string" },
+        "agentVersion": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$"
+        },
+        "systemPromptId": { "type": "string" },
+        "timingMs": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "total": { "type": "number", "minimum": 0 },
+            "llm": { "type": "number", "minimum": 0 },
+            "db": { "type": "number", "minimum": 0 },
+            "cache": { "type": "number", "minimum": 0 },
+            "upload": { "type": "number", "minimum": 0 }
+          }
+        },
+        "tokens": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "input": { "type": "integer", "minimum": 0 },
+            "output": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

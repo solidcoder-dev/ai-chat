@@ -1,0 +1,44 @@
+@startuml
+title Chat Architecture with Middleware Service (Simple) [Archived]
+left to right direction
+
+actor "User" as User
+
+package "Frontend (UI)" {
+  [Maitre Chat]
+  [Consultations Chat]
+  [BI Chat]
+  [Other Chats]
+}
+
+package "Chat Service" {
+  [Chat Manager]
+}
+
+database "Database" as DB
+
+package "AI Agent Services" {
+  [Maitre Agent]
+  [Consultations Agent]
+  [BI Agent]
+  [Other Agents]
+}
+
+User --> [Maitre Chat]
+User --> [Consultations Chat]
+User --> [BI Chat]
+User --> [Other Chats]
+
+[Maitre Chat] <--> [Chat Manager] : WebSocket
+[Consultations Chat] <--> [Chat Manager] : WebSocket
+[BI Chat] <--> [Chat Manager] : WebSocket
+[Other Chats] <--> [Chat Manager] : WebSocket
+
+[Chat Manager] --> [Maitre Agent] : HTTP
+[Chat Manager] --> [Consultations Agent] : HTTP
+[Chat Manager] --> [BI Agent] : HTTP
+[Chat Manager] --> [Other Agents] : HTTP
+
+[Chat Manager] --> DB
+
+@enduml

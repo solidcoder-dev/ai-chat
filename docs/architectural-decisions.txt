@@ -1,0 +1,162 @@
+Persistencia de conversaciones Tripilots 
+
+Relacion empresa -> oficina -> usuario -> conversacion
+Contexto:
+Cada usuario pertenece a una oficina y una empresa.
+Las conversaciones son propiedad del usuario.
+Decision:
+La conversacion referencia solo user_id.
+La empresa y oficina se derivan desde el usuario.
+Consecuencias:
+Se evita duplicar datos y se simplifican consultas.
+Alternativas:
+- Guardar company_id y office_id en la conversacion.
+Diagrama: db-schema.plantuml
+
+Core Service como entrypoint del frontend
+Contexto:
+El frontend necesita un punto unico de acceso para comunicarse con el backend.
+Se busca simplificar autenticacion, seguridad y contratos.
+Decision:
+El Core Service sera el entrypoint del frontend.
+El frontend no hablara directamente con los agentes.
+Consecuencias:
+La autenticacion y el control de acceso se concentran en un solo lugar.
+La interfaz con el frontend se mantiene estable.
+Alternativas:
+- El frontend habla con multiples servicios.
+- Cada agente expone su propio endpoint al frontend.
+- Cada agente comunica con un el core u otro servicio para recuperar/guardar la conversación
+Diagrama: component-core-backend.plantuml
+
+Modulos dentro del Core Service
+Contexto:
+El Core Service debe manejar chat y artefactos.
+No se quiere crear microservicios adicionales por ahora.
+Decision:
+Se crean dos modulos dentro del Core Service: Chat Module y Artifact Module.
+Consecuencias:
+Se separan responsabilidades internas sin agregar complejidad operativa.
+El Core Service puede crecer sin romper contratos externos.
+Alternativas:
+- Crear servicios separados para chat y artefactos.
+Diagrama: component-core-backend.plantuml
+
+Comunicacion con agentes por gRPC
+Contexto:
+El Core Service necesita enviar contexto y recibir eventos intermedios.
+Se busca baja latencia y streaming.
+Decision:
+El Core Service se comunica con los agentes por gRPC.
+Consecuencias:
+Streaming de eventos y mejor rendimiento.
+Mayor complejidad de integracion que HTTP simple.
+Alternativas:
+- HTTP con polling.
+- HTTP con Server-Sent Events.
+Diagrama: sequence-e2e-aws.plantuml
+
+WebSocket entre frontend y Core Service
+Contexto:
+El usuario debe ver pasos intermedios y respuesta final.
+HTTP tradicional no ofrece actualizacion en tiempo real.
+Decision:
+El frontend usa WebSocket con el Core Service.
+Consecuencias:
+Se pueden enviar eventos en tiempo real.
+Se necesita infraestructura para conexiones persistentes.
+Alternativas:
+- HTTP con polling.
+- HTTP con long polling.
+Diagrama: sequence-e2e-aws.plantuml
+
+Eventos intermedios visibles
+Contexto:
+El usuario debe ver los pasos que se ejecutan durante la respuesta.
+Los agentes realizan tool_call y tool_result.
+Decision:
+Los eventos tool_call y tool_result se envian al frontend.
+Consecuencias:
+El frontend puede mostrar pasos en curso.
+Se requiere filtrar informacion sensible en esos eventos.
+Alternativas:
+- Mostrar solo un indicador de "cargando".
+Diagrama: sequence-e2e-aws.plantuml
+
+Persistencia de conversacion en Postgres - RDS
+Contexto:
+Se necesita trazabilidad completa de conversaciones.
+Se requiere consultas confiables por historial.
+Decision:
+Las conversaciones y mensajes se guardan en RDS/Aurora Postgres.
+Consecuencias:
+Consistencia y orden estable de mensajes.
+Se necesita mantenimiento de esquemas y migraciones.
+Alternativas:
+- Almacenamiento en documentos sin esquema estricto.
+Diagrama: sequence-e2e-aws.plantuml
+
+Cache de conversacion en Redis
+Contexto:
+Los agentes necesitan el contexto completo.
+Los servicios en ECS son stateless.
+Decision:
+Se usa ElastiCache (Redis) para cachear conversaciones recientes.
+Consecuencias:
+Menos latencia y menos carga en la base.
+Se requiere invalidar o actualizar el cache.
+Alternativas:
+- No usar cache y leer siempre desde Postgres.
+Diagrama: sequence-e2e-aws.plantuml
+
+Prompt del sistema separado
+Contexto:
+Se quiere analizar cambios de prompt y version de agente.
+Un chat usa un solo prompt por conversacion.
+Decision:
+El prompt del sistema se guarda separado y se referencia desde la conversacion.
+Consecuencias:
+Se puede comparar rendimiento entre versiones.
+Se agrega una entidad extra en el modelo.
+Alternativas:
+- Guardar el prompt como mensaje del sistema en cada chat.
+Diagrama: N/A
+
+Artefactos como referencias
+Contexto:
+Algunas respuestas son grandes (tablas, documentos, imagenes).
+No se quiere inflar el historial de chat.
+Decision:
+Las salidas grandes se guardan fuera del chat y se referencian dentro de tool_result.result.
+Consecuencias:
+El historial es mas liviano.
+Se requiere un flujo para resolver artifact_id desde tool_result.result.
+Alternativas:
+- Guardar todo dentro del mensaje.
+Diagrama: component-core-backend.plantuml
+
+S3 para archivos
+Contexto:
+Se necesita almacenar archivos grandes de forma escalable.
+Se requiere acceso controlado a artefactos.
+Decision:
+Los artefactos grandes se guardan en S3.
+Consecuencias:
+Costo y escala adecuados.
+Se necesitan URLs firmadas para acceso seguro.
+Alternativas:
+- Guardar archivos en la base de datos.
+Diagrama: component-core-backend.plantuml
+
+Autenticacion en el Core Service
+Contexto:
+Los agentes no deben manejar tokens de usuario.
+Se necesita un control de acceso centralizado.
+Decision:
+El Core Service valida la autenticacion y autoriza el acceso.
+Consecuencias:
+Un solo punto de control de seguridad.
+Los agentes reciben solo peticiones internas.
+Alternativas:
+- Cada agente valida tokens de usuario.
+Diagrama: component-core-backend.plantuml

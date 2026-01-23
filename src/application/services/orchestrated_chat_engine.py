@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Literal, Sequence
+from typing import Callable, Literal, Optional, Sequence
+from uuid import uuid4
 
 from ..dtos.assistant_request import AssistantRequest
 from ..dtos.assistant_response import AssistantResponse
@@ -26,6 +27,9 @@ class OrchestratedChatEngine(ChatEngine):
         tool_catalog: ToolCatalog,
         tool_access_policy: ToolAccessPolicy,
         max_tool_calls: int = 3,
+        agent_id: str = "assistant",
+        agent_version: str = "1.0.0",
+        system_prompt_id: str = "prompt-default",
     ) -> None:
         self._chat_repo = chat_repo
         self._assistant = assistant
@@ -33,9 +37,15 @@ class OrchestratedChatEngine(ChatEngine):
         self._tool_catalog = tool_catalog
         self._tool_access_policy = tool_access_policy
         self._max_tool_calls = max_tool_calls
+        self._agent_id = agent_id
+        self._agent_version = agent_version
+        self._system_prompt_id = system_prompt_id
 
-    def handle_user_message(self, chat_id: str, text: str) -> ChatResponse:
-        chat = self._chat_repo.load_chat(chat_id)
+    def handle_user_message(self, chat_id: str, text: str, user_id: str | None = None) -> ChatResponse:
+        chat = self._ensure_chat_metadata(
+            self._chat_repo.load_chat(chat_id, user_id=user_id),
+            user_id=user_id,
+        )
         chat.add_message(self._make_text_message(role="user", text=text))
 
         response = self._run_assistant_loop(chat)
@@ -45,7 +55,36 @@ class OrchestratedChatEngine(ChatEngine):
         self._chat_repo.save_chat(chat)
         return ChatResponse(chat_id=chat.id, content=response.content, meta={})
 
-    def _run_assistant_loop(self, chat: Chat) -> AssistantResponse:
+    def handle_user_message_with_events(
+        self,
+        chat_id: str,
+        text: str,
+        on_event: Optional[Callable[[Message], None]] = None,
+        user_id: str | None = None,
+    ) -> ChatResponse:
+        chat = self._ensure_chat_metadata(
+            self._chat_repo.load_chat(chat_id, user_id=user_id),
+            user_id=user_id,
+        )
+        user_message = self._make_text_message(role="user", text=text)
+        chat.add_message(user_message)
+        self._emit(on_event, user_message)
+
+        response = self._run_assistant_loop(chat, on_event=on_event)
+        if response.kind == "message":
+            assistant_message = self._make_text_message(role="assistant", text=response.content)
+            chat.add_message(assistant_message)
+            self._emit(on_event, assistant_message)
+
+        self._chat_repo.save_chat(chat)
+        return ChatResponse(chat_id=chat.id, content=response.content, meta={})
+
+    def _run_assistant_loop(
+        self,
+        chat: Chat,
+        *,
+        on_event: Optional[Callable[[Message], None]] = None,
+    ) -> AssistantResponse:
         tools = self._allowed_tools()
         request = AssistantRequest(messages=chat.get_messages(), tools=tools)
         response = self._assistant.infer(request)
@@ -58,12 +97,16 @@ class OrchestratedChatEngine(ChatEngine):
 
             call_id = response.tool_args.get("call_id", f"call-{tool_calls}")
             call = ToolCall(call_id=call_id, name=response.tool_name, args=response.tool_args)
-            chat.add_message(self._make_tool_call_message(call))
+            tool_call_message = self._make_tool_call_message(call)
+            chat.add_message(tool_call_message)
+            self._emit(on_event, tool_call_message)
 
             tool = self._tool_registry.get_tool(response.tool_name)
             tool_result = tool.run(response.tool_args)
             result = ToolResult(call_id=call_id, status="ok", result=tool_result)
-            chat.add_message(self._make_tool_result_message(result))
+            tool_result_message = self._make_tool_result_message(result)
+            chat.add_message(tool_result_message)
+            self._emit(on_event, tool_result_message)
 
             request = AssistantRequest(messages=chat.get_messages(), tools=tools)
             response = self._assistant.infer(request)
@@ -92,6 +135,7 @@ class OrchestratedChatEngine(ChatEngine):
                     )
                 ]
             ),
+            message_id=self._new_message_id(),
             _meta=None,
         )
 
@@ -109,6 +153,7 @@ class OrchestratedChatEngine(ChatEngine):
                     )
                 ]
             ),
+            message_id=self._new_message_id(),
             _meta=None,
         )
 
@@ -126,9 +171,33 @@ class OrchestratedChatEngine(ChatEngine):
                     )
                 ]
             ),
+            message_id=self._new_message_id(),
             _meta=None,
         )
+
+    def _ensure_chat_metadata(self, chat: Chat, *, user_id: str | None) -> Chat:
+        if chat.user_id is not None:
+            return chat
+        if user_id is None:
+            raise ValueError("user_id is required for new chats")
+        return Chat(
+            chat.id,
+            user_id=user_id,
+            agent_id=self._agent_id,
+            agent_version=self._agent_version,
+            system_prompt_id=self._system_prompt_id,
+        )
+
+    @staticmethod
+    def _emit(on_event: Optional[Callable[[Message], None]], message: Message) -> None:
+        if on_event is None:
+            return
+        on_event(message)
 
     @staticmethod
     def _now_iso() -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    @staticmethod
+    def _new_message_id() -> str:
+        return str(uuid4())

@@ -1,0 +1,126 @@
+@startuml
+title DB Schema (Simple)
+left to right direction
+hide methods
+hide stereotypes
+
+entity "company" as company {
+  *id : varchar(128)
+  name
+  status
+  created_at
+}
+
+entity "office" as office {
+  *id : varchar(128)
+  company_id
+  name
+  status
+  created_at
+}
+
+entity "app_user" as app_user {
+  *id : varchar(128)
+  company_id
+  office_id
+  status
+  created_at
+}
+
+entity "conversation" as conversation {
+  *id : varchar(128)
+  user_id
+  agent_id
+  agent_version
+  system_prompt_id
+  title
+  status
+  created_at
+  deleted_at
+}
+
+entity "system_prompt" as system_prompt {
+  *id : varchar(128)
+  agent_id
+  agent_version
+  prompt_text
+  prompt_hash
+  created_at
+}
+
+
+entity "message_event" as message_event {
+  *id : bigserial
+  message_uid
+  conversation_id
+  seq
+  role
+  created_at
+  request_id
+  response_to
+  meta : jsonb
+}
+
+entity "message_item" as message_item {
+  *id : bigserial
+  message_id
+  position
+  item_type
+  renderable
+}
+
+entity "message_item_text" as message_item_text {
+  *item_id
+  text
+}
+
+entity "message_item_file" as message_item_file {
+  *item_id
+  source
+  media_type
+  uri
+  filename
+  bytes
+  width
+  height
+  duration_ms
+}
+
+entity "tool_call" as tool_call {
+  *item_id
+  call_id
+  name
+  label
+  args : jsonb
+}
+
+entity "tool_result" as tool_result {
+  *item_id
+  call_id
+  status
+  label
+  result : jsonb
+  error : jsonb
+}
+
+company "1" ||--o{ "N" office : company_id
+company "1" ||--o{ "N" app_user : company_id
+office "1" ||--o{ "N" app_user : office_id
+system_prompt "1" ||--o{ "N" conversation : system_prompt_id
+app_user "1" ||--o{ "N" conversation : user_id
+
+conversation "1" ||--o{ "N" message_event : conversation_id
+message_event "1" ||--o{ "N" message_item : message_id
+message_item "1" ||--o| "1" message_item_text : item_id
+message_item "1" ||--o| "1" message_item_file : item_id
+message_item "1" ||--o| "1" tool_call : item_id
+message_item "1" ||--o| "1" tool_result : item_id
+tool_call "1" ||--o| "1" tool_result : call_id
+message_event "1" ||--o| "0..1" message_event : response_to
+
+note right of tool_result
+  result puede incluir artifact_id
+  para datos externos (tabla/doc)
+end note
+
+@enduml

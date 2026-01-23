@@ -1,0 +1,50 @@
+@startuml
+title AWS E2E Chat Flow (WebSocket + gRPC Streaming)
+autonumber
+
+actor User
+box "AWS"
+participant "Frontend\n(S3 + CloudFront)" as FE
+participant "API Gateway / ALB\nWebSocket + HTTPS" as APIGW
+participant "Core Service API\n(ECS Fargate)" as ChatSvc
+database "RDS/Aurora\nPostgres" as DB
+database "ElastiCache\nRedis" as Cache
+participant "Agent Service\n(ECS Fargate)" as Agent
+end box
+
+User -> FE: Open app
+FE -> User: HTML/JS/CSS
+
+User -> FE: Send message
+FE -> APIGW: WS message {chat_id, text, client_msg_id}
+APIGW -> ChatSvc: WS route invoke
+
+ChatSvc -> ChatSvc: Validate + auth
+ChatSvc -> Cache: Get conversation context
+Cache --> ChatSvc: Hit/Miss
+ChatSvc -> DB: Load conversation + system prompt (on miss)
+ChatSvc -> Cache: Update conversation context
+ChatSvc -> DB: Persist user message
+ChatSvc -> APIGW: WS event "message" (user echo)
+ChatSvc -> APIGW: WS event "loading"
+
+ChatSvc -> Agent: gRPC stream start (request_id, history, agent_id, agent_version)
+activate Agent
+
+loop Tool calls / intermediate steps
+  Agent -> ChatSvc: stream event tool_call/tool_result
+  ChatSvc -> DB: Persist event
+  ChatSvc -> APIGW: WS event "message" (tool_call/tool_result)
+  APIGW -> FE: WS event "message" (tool_call/tool_result)
+  FE -> User: Render step/status update
+end
+
+Agent -> ChatSvc: stream event assistant_final
+deactivate Agent
+ChatSvc -> DB: Persist assistant message
+ChatSvc -> APIGW: WS event "done"
+
+APIGW -> FE: WS events
+FE -> User: Render intermediate + final response
+
+@enduml

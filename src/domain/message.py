@@ -54,4 +54,7 @@ class Message:
     role: Literal["user", "assistant", "system"]
     created_at: str
     content: Content
+    message_id: Optional[str] = None
+    request_id: Optional[str] = None
+    response_to: Optional[str] = None
     _meta: Optional[Meta] = None

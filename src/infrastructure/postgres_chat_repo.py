@@ -1,10 +1,26 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Iterable
+from uuid import uuid4
 
-from sqlalchemy import Column, MetaData, String, Table, select
-from sqlalchemy.dialects.postgresql import JSONB, insert
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    delete,
+    insert,
+    select,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Engine
 
 from ..domain.chat import Chat
@@ -13,16 +29,20 @@ from ..domain.file import (
     AudioMessage,
     FileContent,
     FileMessage,
-    FileRef,
     ImageContent,
     ImageMessage,
     VideoContent,
     VideoMessage,
 )
-from ..domain.message import Content, Message, TextContent, TextMessage, ToolCallMessage, ToolResultMessage
+from ..domain.message import (
+    Content,
+    Message,
+    TextContent,
+    TextMessage,
+    ToolCallMessage,
+    ToolResultMessage,
+)
 from ..domain.meta import Meta
-from ..domain.timing_ms import TimingMs
-from ..domain.token_counts import TokenCounts
 from ..domain.repositories.chat_repo import ChatRepo
 from ..domain.tool import ToolCall, ToolResult
 
@@ -31,145 +51,478 @@ class PostgresChatRepo(ChatRepo):
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
         self._metadata = MetaData()
-        self._chats = Table(
-            "chats",
+
+        self._company = Table(
+            "company",
             self._metadata,
             Column("id", String, primary_key=True),
-            Column("messages", JSONB, nullable=False),
+            Column("name", String, nullable=False),
+            Column("status", String, nullable=False),
+            Column("created_at", DateTime(timezone=True), nullable=False),
         )
+
+        self._office = Table(
+            "office",
+            self._metadata,
+            Column("id", String, primary_key=True),
+            Column("company_id", String, ForeignKey("company.id"), nullable=False),
+            Column("name", String, nullable=False),
+            Column("status", String, nullable=False),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+        )
+
+        self._app_user = Table(
+            "app_user",
+            self._metadata,
+            Column("id", String, primary_key=True),
+            Column("company_id", String, ForeignKey("company.id"), nullable=False),
+            Column("office_id", String, ForeignKey("office.id"), nullable=False),
+            Column("status", String, nullable=False),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+        )
+
+        self._system_prompt = Table(
+            "system_prompt",
+            self._metadata,
+            Column("id", String, primary_key=True),
+            Column("agent_id", String, nullable=False),
+            Column("agent_version", String, nullable=False),
+            Column("prompt_text", Text, nullable=False),
+            Column("prompt_hash", String, nullable=True),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+        )
+
+        self._conversation = Table(
+            "conversation",
+            self._metadata,
+            Column("id", String, primary_key=True),
+            Column("user_id", String, ForeignKey("app_user.id"), nullable=False),
+            Column("agent_id", String, nullable=False),
+            Column("agent_version", String, nullable=False),
+            Column("system_prompt_id", String, ForeignKey("system_prompt.id"), nullable=False),
+            Column("title", String, nullable=True),
+            Column("status", String, nullable=False),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+            Column("deleted_at", DateTime(timezone=True), nullable=True),
+        )
+
+        self._message_event = Table(
+            "message_event",
+            self._metadata,
+            Column("id", BigInteger, primary_key=True, autoincrement=True),
+            Column("message_uid", String, nullable=False, unique=True),
+            Column("conversation_id", String, ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False),
+            Column("seq", BigInteger, nullable=False),
+            Column("role", String, nullable=False),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+            Column("request_id", String, nullable=True),
+            Column(
+                "response_to",
+                String,
+                ForeignKey("message_event.message_uid", ondelete="SET NULL"),
+                nullable=True,
+            ),
+            Column("meta", JSONB, nullable=True),
+        )
+
+        self._message_item = Table(
+            "message_item",
+            self._metadata,
+            Column("id", BigInteger, primary_key=True, autoincrement=True),
+            Column(
+                "message_id",
+                BigInteger,
+                ForeignKey("message_event.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            Column("position", Integer, nullable=False),
+            Column("item_type", String, nullable=False),
+            Column("renderable", Boolean, nullable=False),
+        )
+
+        self._message_item_text = Table(
+            "message_item_text",
+            self._metadata,
+            Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
+            Column("text", Text, nullable=False),
+        )
+
+        self._message_item_file = Table(
+            "message_item_file",
+            self._metadata,
+            Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
+            Column("source", String, nullable=False),
+            Column("media_type", String, nullable=False),
+            Column("uri", Text, nullable=False),
+            Column("filename", String, nullable=False),
+            Column("bytes", BigInteger, nullable=True),
+            Column("width", Integer, nullable=True),
+            Column("height", Integer, nullable=True),
+            Column("duration_ms", Integer, nullable=True),
+        )
+
+        self._tool_call = Table(
+            "tool_call",
+            self._metadata,
+            Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
+            Column("call_id", String, nullable=False, unique=True),
+            Column("name", String, nullable=False),
+            Column("label", String, nullable=True),
+            Column("args", JSONB, nullable=False),
+        )
+
+        self._tool_result = Table(
+            "tool_result",
+            self._metadata,
+            Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
+            Column("call_id", String, ForeignKey("tool_call.call_id"), nullable=False),
+            Column("status", String, nullable=False),
+            Column("label", String, nullable=True),
+            Column("result", JSONB, nullable=True),
+            Column("error", JSONB, nullable=True),
+        )
+
         self._metadata.create_all(self._engine)
 
-    def load_chat(self, chat_id: str) -> Chat:
+    def load_chat(self, chat_id: str, user_id: str | None = None) -> Chat:
         with self._engine.begin() as connection:
-            result = connection.execute(
-                select(self._chats.c.messages).where(self._chats.c.id == chat_id)
+            conversation_row = connection.execute(
+                select(self._conversation).where(self._conversation.c.id == chat_id)
             ).one_or_none()
-        if result is None:
-            return Chat(chat_id)
-        messages = [self._deserialize_message(item) for item in result[0]]
-        chat = Chat(chat_id)
-        for message in messages:
-            chat.add_message(message)
+
+        if conversation_row is None:
+            return Chat(chat_id, user_id=user_id)
+
+        chat = Chat(
+            chat_id,
+            user_id=conversation_row.user_id,
+            agent_id=conversation_row.agent_id,
+            agent_version=conversation_row.agent_version,
+            system_prompt_id=conversation_row.system_prompt_id,
+        )
+
+        with self._engine.begin() as connection:
+            message_rows = connection.execute(
+                select(self._message_event)
+                .where(self._message_event.c.conversation_id == chat_id)
+                .order_by(self._message_event.c.seq)
+            ).all()
+
+            for message_row in message_rows:
+                items = self._load_message_items(connection, message_row.id)
+                message = Message(
+                    type="message",
+                    role=message_row.role,
+                    created_at=self._format_datetime(message_row.created_at),
+                    content=Content(items=items),
+                    message_id=message_row.message_uid,
+                    request_id=message_row.request_id,
+                    response_to=message_row.response_to,
+                    _meta=self._deserialize_meta(message_row.meta) if message_row.meta else None,
+                )
+                chat.add_message(message)
+
         return chat
 
     def save_chat(self, chat: Chat) -> None:
-        messages_payload = [asdict(message) for message in chat.get_messages()]
-        stmt = (
-            insert(self._chats)
-            .values(id=chat.id, messages=messages_payload)
-            .on_conflict_do_update(
-                index_elements=[self._chats.c.id],
-                set_={"messages": messages_payload},
-            )
-        )
+        if not chat.user_id:
+            raise ValueError("Chat.user_id is required")
+        if not chat.agent_id:
+            raise ValueError("Chat.agent_id is required")
+        if not chat.agent_version:
+            raise ValueError("Chat.agent_version is required")
+        if not chat.system_prompt_id:
+            raise ValueError("Chat.system_prompt_id is required")
+
+        now = datetime.now(timezone.utc)
+
         with self._engine.begin() as connection:
-            connection.execute(stmt)
+            existing = connection.execute(
+                select(self._conversation.c.created_at).where(self._conversation.c.id == chat.id)
+            ).one_or_none()
+            created_at = existing[0] if existing else now
 
-    def _deserialize_message(self, payload: dict[str, Any]) -> Message:
-        content = Content(items=[self._deserialize_part(part) for part in payload["content"]["items"]])
-        meta = payload.get("_meta")
-        return Message(
-            type=payload["type"],
-            role=payload["role"],
-            created_at=payload["created_at"],
-            content=content,
-            _meta=self._deserialize_meta(meta) if meta is not None else None,
-        )
+            connection.execute(
+                insert(self._conversation)
+                .values(
+                    id=chat.id,
+                    user_id=chat.user_id,
+                    agent_id=chat.agent_id,
+                    agent_version=chat.agent_version,
+                    system_prompt_id=chat.system_prompt_id,
+                    title=None,
+                    status="active",
+                    created_at=created_at,
+                    deleted_at=None,
+                )
+                .on_conflict_do_update(
+                    index_elements=[self._conversation.c.id],
+                    set_={
+                        "user_id": chat.user_id,
+                        "agent_id": chat.agent_id,
+                        "agent_version": chat.agent_version,
+                        "system_prompt_id": chat.system_prompt_id,
+                        "title": None,
+                        "status": "active",
+                        "deleted_at": None,
+                    },
+                )
+            )
 
-    def _deserialize_part(self, payload: dict[str, Any]) -> object:
-        part_type = payload["type"]
-        data = payload["data"]
-        if part_type == "text":
-            return TextMessage(
-                type=part_type,
-                renderable=payload["renderable"],
-                data=TextContent(text=data["text"]),
+            connection.execute(
+                delete(self._message_event).where(self._message_event.c.conversation_id == chat.id)
             )
-        if part_type == "file":
-            return FileMessage(
-                type=part_type,
-                renderable=payload["renderable"],
-                data=self._deserialize_file_content(data),
-            )
-        if part_type == "image":
+
+            for seq, message in enumerate(chat.get_messages(), start=1):
+                message_uid = message.message_id or str(uuid4())
+                created_at = self._parse_datetime(message.created_at)
+                meta_payload = asdict(message._meta) if message._meta else None
+
+                message_event_id = connection.execute(
+                    insert(self._message_event)
+                    .values(
+                        message_uid=message_uid,
+                        conversation_id=chat.id,
+                        seq=seq,
+                        role=message.role,
+                        created_at=created_at,
+                        request_id=message.request_id,
+                        response_to=message.response_to,
+                        meta=meta_payload,
+                    )
+                    .returning(self._message_event.c.id)
+                ).scalar_one()
+
+                self._save_message_items(connection, message_event_id, message.content.items)
+
+    def _save_message_items(
+        self,
+        connection,
+        message_event_id: int,
+        items: Iterable[Any],
+    ) -> None:
+        for position, item in enumerate(items, start=1):
+            item_type, renderable = self._resolve_item_type(item)
+            item_id = connection.execute(
+                insert(self._message_item)
+                .values(
+                    message_id=message_event_id,
+                    position=position,
+                    item_type=item_type,
+                    renderable=renderable,
+                )
+                .returning(self._message_item.c.id)
+            ).scalar_one()
+
+            if isinstance(item, TextMessage):
+                connection.execute(
+                    insert(self._message_item_text)
+                    .values(item_id=item_id, text=item.data.text)
+                )
+                continue
+
+            if isinstance(item, (FileMessage, ImageMessage, AudioMessage, VideoMessage)):
+                connection.execute(
+                    insert(self._message_item_file)
+                    .values(
+                        item_id=item_id,
+                        source=item.data.source,
+                        media_type=item.data.media_type,
+                        uri=item.data.uri,
+                        filename=item.data.filename,
+                        bytes=item.data.bytes,
+                        width=getattr(item.data, "width", None),
+                        height=getattr(item.data, "height", None),
+                        duration_ms=getattr(item.data, "duration_ms", None),
+                    )
+                )
+                continue
+
+            if isinstance(item, ToolCallMessage):
+                connection.execute(
+                    insert(self._tool_call)
+                    .values(
+                        item_id=item_id,
+                        call_id=item.data.call_id,
+                        name=item.data.name,
+                        label=item.data.label,
+                        args=item.data.args,
+                    )
+                )
+                continue
+
+            if isinstance(item, ToolResultMessage):
+                connection.execute(
+                    insert(self._tool_result)
+                    .values(
+                        item_id=item_id,
+                        call_id=item.data.call_id,
+                        status=item.data.status,
+                        label=item.data.label,
+                        result=item.data.result,
+                        error=item.data.error,
+                    )
+                )
+                continue
+
+            raise ValueError(f"Unsupported message item type: {type(item).__name__}")
+
+    def _load_message_items(self, connection, message_event_id: int) -> list[Any]:
+        items = []
+        rows = connection.execute(
+            select(self._message_item)
+            .where(self._message_item.c.message_id == message_event_id)
+            .order_by(self._message_item.c.position)
+        ).all()
+
+        for row in rows:
+            item_type = row.item_type
+            if item_type == "text":
+                text_row = connection.execute(
+                    select(self._message_item_text).where(
+                        self._message_item_text.c.item_id == row.id
+                    )
+                ).one()
+                items.append(
+                    TextMessage(
+                        type="text",
+                        renderable=row.renderable,
+                        data=TextContent(text=text_row.text),
+                    )
+                )
+                continue
+
+            if item_type in {"file", "image", "audio", "video"}:
+                file_row = connection.execute(
+                    select(self._message_item_file).where(
+                        self._message_item_file.c.item_id == row.id
+                    )
+                ).one()
+                items.append(self._build_file_message(item_type, file_row, row.renderable))
+                continue
+
+            if item_type == "tool_call":
+                call_row = connection.execute(
+                    select(self._tool_call).where(self._tool_call.c.item_id == row.id)
+                ).one()
+                items.append(
+                    ToolCallMessage(
+                        type="tool_call",
+                        renderable=row.renderable,
+                        data=ToolCall(
+                            call_id=call_row.call_id,
+                            name=call_row.name,
+                            args=call_row.args,
+                            label=call_row.label,
+                        ),
+                    )
+                )
+                continue
+
+            if item_type == "tool_result":
+                result_row = connection.execute(
+                    select(self._tool_result).where(self._tool_result.c.item_id == row.id)
+                ).one()
+                items.append(
+                    ToolResultMessage(
+                        type="tool_result",
+                        renderable=row.renderable,
+                        data=ToolResult(
+                            call_id=result_row.call_id,
+                            status=result_row.status,
+                            result=result_row.result,
+                            error=result_row.error,
+                            label=result_row.label,
+                        ),
+                    )
+                )
+                continue
+
+            raise ValueError(f"Unknown message item type: {item_type}")
+
+        return items
+
+    @staticmethod
+    def _resolve_item_type(item: Any) -> tuple[str, bool]:
+        if isinstance(item, TextMessage):
+            return "text", item.renderable
+        if isinstance(item, ImageMessage):
+            return "image", item.renderable
+        if isinstance(item, AudioMessage):
+            return "audio", item.renderable
+        if isinstance(item, VideoMessage):
+            return "video", item.renderable
+        if isinstance(item, FileMessage):
+            return "file", item.renderable
+        if isinstance(item, ToolCallMessage):
+            return "tool_call", item.renderable
+        if isinstance(item, ToolResultMessage):
+            return "tool_result", item.renderable
+        raise ValueError(f"Unsupported message item type: {type(item).__name__}")
+
+    @staticmethod
+    def _build_file_message(item_type: str, row, renderable: bool) -> Message:
+        if item_type == "image":
             return ImageMessage(
-                type=part_type,
-                renderable=payload["renderable"],
-                data=self._deserialize_image_content(data),
+                type="image",
+                renderable=renderable,
+                data=ImageContent(
+                    source=row.source,
+                    media_type=row.media_type,
+                    uri=row.uri,
+                    filename=row.filename,
+                    bytes=row.bytes,
+                    width=row.width,
+                    height=row.height,
+                ),
             )
-        if part_type == "audio":
+        if item_type == "audio":
             return AudioMessage(
-                type=part_type,
-                renderable=payload["renderable"],
-                data=self._deserialize_audio_content(data),
+                type="audio",
+                renderable=renderable,
+                data=AudioContent(
+                    source=row.source,
+                    media_type=row.media_type,
+                    uri=row.uri,
+                    filename=row.filename,
+                    bytes=row.bytes,
+                    duration_ms=row.duration_ms,
+                ),
             )
-        if part_type == "video":
+        if item_type == "video":
             return VideoMessage(
-                type=part_type,
-                renderable=payload["renderable"],
-                data=self._deserialize_video_content(data),
-            )
-        if part_type == "tool_call":
-            return ToolCallMessage(
-                type=part_type,
-                renderable=payload["renderable"],
-                data=ToolCall(
-                    call_id=data["call_id"],
-                    name=data["name"],
-                    args=data["args"],
+                type="video",
+                renderable=renderable,
+                data=VideoContent(
+                    source=row.source,
+                    media_type=row.media_type,
+                    uri=row.uri,
+                    filename=row.filename,
+                    bytes=row.bytes,
+                    duration_ms=row.duration_ms,
                 ),
             )
-        if part_type == "tool_result":
-            return ToolResultMessage(
-                type=part_type,
-                renderable=payload["renderable"],
-                data=ToolResult(
-                    call_id=data["call_id"],
-                    status=data["status"],
-                    result=data.get("result"),
-                    error=data.get("error"),
-                ),
-            )
-        raise ValueError(f"Unknown message part type: {part_type}")
-
-    def _deserialize_file_ref(self, payload: dict[str, Any]) -> FileRef:
-        return FileRef(
-            source=payload["source"],
-            media_type=payload["media_type"],
-            uri=payload["uri"],
+        return FileMessage(
+            type="file",
+            renderable=renderable,
+            data=FileContent(
+                source=row.source,
+                media_type=row.media_type,
+                uri=row.uri,
+                filename=row.filename,
+                bytes=row.bytes,
+            ),
         )
 
-    def _deserialize_file_content(self, payload: dict[str, Any]) -> FileContent:
-        return FileContent(
-            ref=self._deserialize_file_ref(payload["ref"]),
-            filename=payload["filename"],
-            bytes=payload.get("bytes"),
-        )
+    @staticmethod
+    def _parse_datetime(value: str) -> datetime:
+        if value.endswith("Z"):
+            value = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(value)
 
-    def _deserialize_image_content(self, payload: dict[str, Any]) -> ImageContent:
-        return ImageContent(
-            ref=self._deserialize_file_ref(payload["ref"]),
-            filename=payload["filename"],
-            bytes=payload.get("bytes"),
-            width=payload.get("width"),
-            height=payload.get("height"),
-        )
-
-    def _deserialize_audio_content(self, payload: dict[str, Any]) -> AudioContent:
-        return AudioContent(
-            ref=self._deserialize_file_ref(payload["ref"]),
-            filename=payload["filename"],
-            bytes=payload.get("bytes"),
-            duration_ms=payload.get("duration_ms"),
-        )
-
-    def _deserialize_video_content(self, payload: dict[str, Any]) -> VideoContent:
-        return VideoContent(
-            ref=self._deserialize_file_ref(payload["ref"]),
-            filename=payload["filename"],
-            bytes=payload.get("bytes"),
-            duration_ms=payload.get("duration_ms"),
-        )
+    @staticmethod
+    def _format_datetime(value: datetime) -> str:
+        return value.astimezone(timezone.utc).isoformat()
 
     def _deserialize_meta(self, payload: dict[str, Any]) -> Meta:
         timing = payload.get("timing_ms")
@@ -179,11 +532,17 @@ class PostgresChatRepo(ChatRepo):
             request_id=payload.get("request_id"),
             trace_id=payload.get("trace_id"),
             model=payload.get("model"),
+            agent_id=payload.get("agent_id"),
+            agent_version=payload.get("agent_version"),
+            system_prompt_id=payload.get("system_prompt_id"),
             timing_ms=self._deserialize_timing(timing) if timing else None,
             tokens=self._deserialize_tokens(tokens) if tokens else None,
         )
 
-    def _deserialize_timing(self, payload: dict[str, Any]) -> TimingMs:
+    @staticmethod
+    def _deserialize_timing(payload: dict[str, Any]):
+        from ..domain.timing_ms import TimingMs
+
         return TimingMs(
             total=payload.get("total"),
             llm=payload.get("llm"),
@@ -192,7 +551,10 @@ class PostgresChatRepo(ChatRepo):
             upload=payload.get("upload"),
         )
 
-    def _deserialize_tokens(self, payload: dict[str, Any]) -> TokenCounts:
+    @staticmethod
+    def _deserialize_tokens(payload: dict[str, Any]):
+        from ..domain.token_counts import TokenCounts
+
         return TokenCounts(
             input=payload.get("input"),
             output=payload.get("output"),

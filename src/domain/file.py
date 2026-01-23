@@ -3,15 +3,10 @@ from typing import Literal, Optional
 
 
 @dataclass(frozen=True)
-class FileRef:
+class FileContent:
     source: Literal["uri", "base64"]
     media_type: str
     uri: str
-
-
-@dataclass(frozen=True)
-class FileContent:
-    ref: FileRef
     filename: str
     bytes: Optional[int] = None
 
@@ -21,6 +16,9 @@ class FileMessage:
     type: Literal["file"]
     renderable: Literal[True]
     data: FileContent
+
+
+@dataclass(frozen=True)
 
 
 @dataclass(frozen=True)

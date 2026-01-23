@@ -11,5 +11,8 @@ class Meta:
     request_id: Optional[str] = None
     trace_id: Optional[str] = None
     model: Optional[str] = None
+    agent_id: Optional[str] = None
+    agent_version: Optional[str] = None
+    system_prompt_id: Optional[str] = None
     timing_ms: Optional[TimingMs] = None
     tokens: Optional[TokenCounts] = None

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/conversation/1.0.0/conversation.json",
+  "title": "Conversation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "userId", "createdAt", "status", "agentId", "agentVersion", "systemPromptId"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "userId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "archived"]
+    },
+    "agentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Stable identifier for the agent used in this conversation."
+    },
+    "agentVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$",
+      "description": "Semantic version of the agent."
+    },
+    "systemPromptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Reference to the system prompt stored for this conversation."
+    },
+    "deletedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

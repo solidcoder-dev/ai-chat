@@ -5,7 +5,7 @@ from ..chat import Chat
 
 class ChatRepo(ABC):
     @abstractmethod
-    def load_chat(self, chat_id: str) -> Chat:
+    def load_chat(self, chat_id: str, user_id: str | None = None) -> Chat:
         raise NotImplementedError
 
     @abstractmethod

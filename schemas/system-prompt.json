@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/system-prompt/1.0.0/system-prompt.json",
+  "title": "SystemPrompt",
+  "description": "Stored system prompt for a specific agent version.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "agentId", "agentVersion", "promptText", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "agentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "agentVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "promptText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200000
+    },
+    "promptHash": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Hash of promptText for quick comparisons."
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

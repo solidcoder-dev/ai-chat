@@ -1,5 +1,7 @@
 from typing import List
 
+from datetime import datetime, timezone
+
 from sqlalchemy import create_engine, text
 from testcontainers.postgres import PostgresContainer
 
@@ -36,10 +38,52 @@ def _seed(engine) -> None:
         )
 
 
+def _seed_chat_dependencies(engine, *, user_id: str, prompt_id: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO company (id, name, status, created_at)
+                VALUES ('company-1', 'Demo', 'active', :created_at)
+                """
+            ),
+            {"created_at": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO office (id, company_id, name, status, created_at)
+                VALUES ('office-1', 'company-1', 'HQ', 'active', :created_at)
+                """
+            ),
+            {"created_at": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO app_user (id, company_id, office_id, status, created_at)
+                VALUES (:user_id, 'company-1', 'office-1', 'active', :created_at)
+                """
+            ),
+            {"user_id": user_id, "created_at": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO system_prompt (id, agent_id, agent_version, prompt_text, created_at)
+                VALUES (:prompt_id, 'agent-1', '1.0.0', 'system prompt', :created_at)
+                """
+            ),
+            {"prompt_id": prompt_id, "created_at": now},
+        )
+
+
 def test_e2e_chat_flow_with_tools_and_postgres_repo():
     with PostgresContainer("postgres:16-alpine") as postgres:
         engine = create_engine(postgres.get_connection_url(), future=True)
         _seed(engine)
+        _seed_chat_dependencies(engine, user_id="user-1", prompt_id="prompt-1")
 
         data_catalog = PostgresDataCatalog(engine)
         query_executor = SqlAlchemyQueryExecutor(engine)
@@ -86,12 +130,15 @@ def test_e2e_chat_flow_with_tools_and_postgres_repo():
             tool_registry=tool_registry,
             tool_catalog=tool_catalog,
             tool_access_policy=AllowAllToolAccessPolicy(),
+            agent_id="agent-1",
+            agent_version="1.0.0",
+            system_prompt_id="prompt-1",
         )
 
-        response = engine_service.handle_user_message("chat-e2e", "run")
+        response = engine_service.handle_user_message("chat-e2e", "run", user_id="user-1")
         assert response.content == "done"
 
-        loaded = repo.load_chat("chat-e2e")
+        loaded = repo.load_chat("chat-e2e", user_id="user-1")
         messages = list(loaded.get_messages())
         assert len(messages) == 6
         assert messages[1].content.items[0].data.name == "inspect_schema"

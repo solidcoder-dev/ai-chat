@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import create_engine
@@ -12,11 +13,13 @@ from ..application.services.logging_assistant import LoggingAssistant
 from ..application.services.metrics_assistant import MetricsAssistant
 from ..application.services.orchestrated_chat_engine import OrchestratedChatEngine
 from ..domain.repositories.chat_repo import ChatRepo
+from ..domain.system_prompt import SystemPrompt
 from ..infrastructure.data_catalog import PostgresDataCatalog
 from ..infrastructure.inspect_schema_tool import InspectSchemaTool
 from ..infrastructure.ollama_assistant import OllamaAssistant
 from ..infrastructure.json_file_metrics import JsonFileMetrics
 from ..infrastructure.postgres_chat_repo import PostgresChatRepo
+from ..infrastructure.postgres_system_prompt_repo import PostgresSystemPromptRepo
 from ..infrastructure.query_executor import SqlAlchemyQueryExecutor
 from ..infrastructure.sql_execution_tool import SqlExecutionTool
 from ..infrastructure.std_logger import StdLogger
@@ -37,6 +40,7 @@ def build_chat_engine(
     )
 
     chat_repo: ChatRepo = PostgresChatRepo(engine)
+    system_prompt_repo = PostgresSystemPromptRepo(engine)
     data_catalog = PostgresDataCatalog(engine)
     query_executor = SqlAlchemyQueryExecutor(engine)
 
@@ -54,10 +58,28 @@ def build_chat_engine(
         JsonFileMetrics(),
     )
 
+    agent_id = os.environ.get("AGENT_ID", "assistant")
+    agent_version = os.environ.get("AGENT_VERSION", "1.0.0")
+    system_prompt_id = os.environ.get("SYSTEM_PROMPT_ID", "prompt-default")
+    system_prompt_text = os.environ.get("SYSTEM_PROMPT_TEXT", "")
+
+    system_prompt_repo.save_prompt(
+        SystemPrompt(
+            prompt_id=system_prompt_id,
+            agent_id=agent_id,
+            agent_version=agent_version,
+            prompt_text=system_prompt_text,
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+    )
+
     return OrchestratedChatEngine(
         chat_repo=chat_repo,
         assistant=assistant,
         tool_registry=tool_registry,
         tool_catalog=tool_catalog,
         tool_access_policy=tool_access_policy,
+        agent_id=agent_id,
+        agent_version=agent_version,
+        system_prompt_id=system_prompt_id,
     )

@@ -3,16 +3,15 @@ Workflow actualizado para la petición:
 
 ---
 
-1. **Cliente → WebSocketEndpointV1**
-   El mensaje llega al `WebSocketEndpointV1`, que delega en:
+1. **Cliente → WebSocketEndpoint**
+   El mensaje llega al `WebSocketEndpoint`, que delega en:
 
-   * `ChatEngine.handleUserMessage(chatId, text)`
-     (implementado por `ChatEngineV1`)
+   * `OrchestratedChatEngine.handle_user_message_with_events(chat_id, text, on_event)`
 
 ---
 
-2. **ChatEngineV1: carga y actualiza el Chat**
-   `ChatEngineV1` usa:
+2. **OrchestratedChatEngine: carga y actualiza el Chat**
+   `OrchestratedChatEngine` usa:
 
    * `ChatRepo.loadChat(chatId)` → obtiene `Chat`
    * `Chat.addMessage(role="user", content=...)`
@@ -20,21 +19,21 @@ Workflow actualizado para la petición:
 
 ---
 
-3. **ChatEngineV1: prepara la llamada al Assistant**
+3. **OrchestratedChatEngine: prepara la llamada al Assistant**
 
    1. Obtiene todos los metadatos de tools:
 
-      * `ToolCatalog.listAllToolSpecs()` → `allSpecs : List<ToolSpec>`
+      * `ToolCatalog.list_all_tool_specs()` → `all_specs : List<ToolSpec>`
 
    2. Decide qué tools están permitidas para este assistant/contexto:
 
-      * `ToolAccessPolicy.getAllowedTools(assistantId, context, allSpecs)`
-        → `allowedSpecs : List<ToolSpec>`
+      * `ToolAccessPolicy.get_allowed_tools(assistant_id, context, all_specs)`
+        → `allowed_specs : List<ToolSpec>`
 
    3. Construye un `AssistantRequest` con:
 
-      * `messages = chat.getMessages()`
-      * `tools = allowedSpecs`
+      * `messages = chat.get_messages()`
+      * `tools = allowed_specs`
 
    4. Llama al asistente (puede ser `AssistantV1` o `MultiAssistantV1`):
 
@@ -44,60 +43,60 @@ Workflow actualizado para la petición:
 
 ---
 
-4. **ChatEngineV1: ejecuta inspect_schema**
+4. **OrchestratedChatEngine: ejecuta inspect_schema**
 
-   * `ToolRegistry.getTool("inspect_schema")` → instancia de `InspectSchemaToolV1`
+   * `ToolRegistry.get_tool("inspect_schema")` → instancia de `InspectSchemaTool`
    * `Tool.run(args)` sobre esa instancia
 
-   Dentro de `InspectSchemaToolV1` se usa:
+   Dentro de `InspectSchemaTool` se usa:
 
    * `DataCatalog.getTableForDataset(datasetName)`
    * `DataCatalog.getSchema(tableName)`
 
    La tool devuelve el esquema.
 
-   `ChatEngineV1`:
+   `OrchestratedChatEngine`:
 
    * añade el resultado como mensaje de tool al `Chat`
    * `ChatRepo.saveChat(chat)`
 
 ---
 
-5. **ChatEngineV1: segunda llamada al Assistant (con esquema)**
+5. **OrchestratedChatEngine: segunda llamada al Assistant (con esquema)**
 
    De nuevo:
 
-   1. `ToolCatalog.listAllToolSpecs()` → `allSpecs`
-   2. `ToolAccessPolicy.getAllowedTools(assistantId, context, allSpecs)` → `allowedSpecs`
-   3. Construye un nuevo `AssistantRequest` (mensajes + `allowedSpecs`).
+   1. `ToolCatalog.list_all_tool_specs()` → `all_specs`
+   2. `ToolAccessPolicy.get_allowed_tools(assistant_id, context, all_specs)` → `allowed_specs`
+   3. Construye un nuevo `AssistantRequest` (mensajes + `allowed_specs`).
    4. Llama a `Assistant.infer(request)`.
 
-   El `Assistant` usa el esquema, construye un SQL y devuelve otra `AssistantResponse` de tipo `tool_call` para `"run_sql_query"` con el SQL.
+   El `Assistant` usa el esquema, construye un SQL y devuelve otra `AssistantResponse` de tipo `tool_call` para `"sql_execute"` con el SQL.
 
 ---
 
-6. **ChatEngineV1: ejecuta run_sql_query**
+6. **OrchestratedChatEngine: ejecuta sql_execute**
 
-   * `ToolRegistry.getTool("run_sql_query")` → instancia de `SqlExecutionToolV1`
+   * `ToolRegistry.get_tool("sql_execute")` → instancia de `SqlExecutionTool`
    * `Tool.run(args)` sobre esa instancia
 
-   Dentro de `SqlExecutionToolV1` se usa:
+   Dentro de `SqlExecutionTool` se usa:
 
    * `QueryExecutor.execute(sql)` → `QueryResult` (con la media)
 
-   `ChatEngineV1` añade este resultado como mensaje de tool al `Chat` y guarda:
+   `OrchestratedChatEngine` añade este resultado como mensaje de tool al `Chat` y guarda:
 
    * `ChatRepo.saveChat(chat)`
 
 ---
 
-7. **ChatEngineV1: tercera llamada al Assistant (con resultado)**
+7. **OrchestratedChatEngine: tercera llamada al Assistant (con resultado)**
 
    Igual patrón:
 
-   1. `ToolCatalog.listAllToolSpecs()` → `allSpecs`
-   2. `ToolAccessPolicy.getAllowedTools(...)` → `allowedSpecs`
-   3. `AssistantRequest(messages, allowedSpecs)`
+   1. `ToolCatalog.list_all_tool_specs()` → `all_specs`
+   2. `ToolAccessPolicy.get_allowed_tools(...)` → `allowed_specs`
+   3. `AssistantRequest(messages, allowed_specs)`
    4. `Assistant.infer(request)`
 
    Ahora el `Assistant` devuelve una `AssistantResponse` de tipo `"message"` con el texto final:
@@ -105,7 +104,7 @@ Workflow actualizado para la petición:
 
 ---
 
-8. **ChatEngineV1: guarda y responde**
+8. **OrchestratedChatEngine: guarda y responde**
 
    * `Chat.addMessage(role="assistant", content=...)`
    * `ChatRepo.saveChat(chat)`
@@ -115,10 +114,10 @@ Workflow actualizado para la petición:
      * `content`
      * `meta` (por ejemplo, `{ "tool_used": "run_sql_query", "value": 42.3 }`)
 
-   Devuelve este `ChatResponse` al `WebSocketEndpointV1`.
+   Devuelve este `ChatResponse` al `WebSocketEndpoint`.
 
 ---
 
-9. **WebSocketEndpointV1 → Cliente**
+9. **WebSocketEndpoint → Cliente**
 
-   El `WebSocketEndpointV1` envía el contenido del `ChatResponse` al cliente por WebSocket.
+   El `WebSocketEndpoint` envía eventos intermedios (`tool_call`, `tool_result`) y el `ChatResponse` final al cliente por WebSocket.

@@ -1,0 +1,51 @@
+@startuml
+title Core Service with Chat + Artifact Modules (AWS)
+left to right direction
+
+actor "User" as User
+
+package "AWS" {
+  package "Frontend (UI)" {
+    [Tripilots Web App\n(S3 + CloudFront)]
+  }
+
+  package "API Gateway / ALB" {
+    [WebSocket + HTTPS\nEndpoints]
+  }
+
+  package "Core Service (Backend)\n(ECS Fargate)" {
+    [API Layer]
+    [Chat Module]
+    [Artifact Module]
+  }
+
+  package "AI Agent Services\n(ECS Fargate)" {
+    [Maitre Agent]
+    [BI Agent]
+    [Brain Agent]
+    [Other Agents]
+  }
+
+  database "RDS/Aurora\nPostgres" as DB
+  database "ElastiCache\nRedis" as Cache
+  cloud "S3" as S3
+}
+
+User --> [Tripilots Web App\n(S3 + CloudFront)]
+[Tripilots Web App\n(S3 + CloudFront)] --> [WebSocket + HTTPS\nEndpoints] : WebSocket/HTTPS
+[WebSocket + HTTPS\nEndpoints] --> [API Layer]
+
+[API Layer] --> [Chat Module]
+[API Layer] --> [Artifact Module]
+
+[Chat Module] --> DB
+[Chat Module] --> Cache
+[Artifact Module] --> DB
+[Artifact Module] --> S3
+
+[API Layer] --> [Maitre Agent] : gRPC
+[API Layer] --> [BI Agent] : gRPC
+[API Layer] --> [Brain Agent] : gRPC
+[API Layer] --> [Other Agents] : gRPC
+
+@enduml
