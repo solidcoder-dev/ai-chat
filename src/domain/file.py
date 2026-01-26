@@ -19,9 +19,6 @@ class FileMessage:
 
 
 @dataclass(frozen=True)
-
-
-@dataclass(frozen=True)
 class ImageContent(FileContent):
     width: Optional[int] = None
     height: Optional[int] = None

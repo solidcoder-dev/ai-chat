@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Dict
 
 from ..domain.chat import Chat
@@ -12,7 +13,12 @@ class InMemoryChatRepo(ChatRepo):
         chat = self._chats.get(chat_id)
         if chat is not None:
             return chat
-        return Chat(chat_id, user_id=user_id)
+        return Chat(
+            chat_id,
+            user_id=user_id,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            status="active",
+        )
 
     def save_chat(self, chat: Chat) -> None:
         self._chats[chat.id] = chat

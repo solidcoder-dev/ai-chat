@@ -176,16 +176,22 @@ class OrchestratedChatEngine(ChatEngine):
         )
 
     def _ensure_chat_metadata(self, chat: Chat, *, user_id: str | None) -> Chat:
-        if chat.user_id is not None:
+        if chat.user_id is not None and chat.created_at is not None and chat.status is not None:
             return chat
         if user_id is None:
             raise ValueError("user_id is required for new chats")
+        created_at = chat.created_at or self._now_iso()
+        status = chat.status or "active"
         return Chat(
             chat.id,
             user_id=user_id,
             agent_id=self._agent_id,
             agent_version=self._agent_version,
             system_prompt_id=self._system_prompt_id,
+            created_at=created_at,
+            status=status,
+            title=chat.title,
+            deleted_at=chat.deleted_at,
         )
 
     @staticmethod

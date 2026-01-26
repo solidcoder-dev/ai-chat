@@ -4,6 +4,8 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any, Iterable
 from uuid import uuid4
+import threading
+import weakref
 
 from sqlalchemy import (
     BigInteger,
@@ -20,8 +22,9 @@ from sqlalchemy import (
     insert,
     select,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, insert as pg_insert
 from sqlalchemy.engine import Engine
+from sqlalchemy import event
 
 from ..domain.chat import Chat
 from ..domain.file import (
@@ -47,142 +50,177 @@ from ..domain.repositories.chat_repo import ChatRepo
 from ..domain.tool import ToolCall, ToolResult
 
 
+_METADATA = MetaData()
+
+_COMPANY = Table(
+    "company",
+    _METADATA,
+    Column("id", String, primary_key=True),
+    Column("name", String, nullable=False),
+    Column("status", String, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+_OFFICE = Table(
+    "office",
+    _METADATA,
+    Column("id", String, primary_key=True),
+    Column("company_id", String, ForeignKey("company.id"), nullable=False),
+    Column("name", String, nullable=False),
+    Column("status", String, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+_APP_USER = Table(
+    "app_user",
+    _METADATA,
+    Column("id", String, primary_key=True),
+    Column("company_id", String, ForeignKey("company.id"), nullable=False),
+    Column("office_id", String, ForeignKey("office.id"), nullable=False),
+    Column("status", String, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+_SYSTEM_PROMPT = Table(
+    "system_prompt",
+    _METADATA,
+    Column("id", String, primary_key=True),
+    Column("agent_id", String, nullable=False),
+    Column("agent_version", String, nullable=False),
+    Column("prompt_text", Text, nullable=False),
+    Column("prompt_hash", String, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+_CONVERSATION = Table(
+    "conversation",
+    _METADATA,
+    Column("id", String, primary_key=True),
+    Column("user_id", String, ForeignKey("app_user.id"), nullable=False),
+    Column("agent_id", String, nullable=False),
+    Column("agent_version", String, nullable=False),
+    Column("system_prompt_id", String, ForeignKey("system_prompt.id"), nullable=False),
+    Column("title", String, nullable=True),
+    Column("status", String, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("deleted_at", DateTime(timezone=True), nullable=True),
+)
+
+_MESSAGE_EVENT = Table(
+    "message_event",
+    _METADATA,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("message_uid", String, nullable=False, unique=True),
+    Column("conversation_id", String, ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False),
+    Column("seq", BigInteger, nullable=False),
+    Column("role", String, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("request_id", String, nullable=True),
+    Column(
+        "response_to",
+        String,
+        ForeignKey("message_event.message_uid", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    Column("meta", JSONB, nullable=True),
+)
+
+_MESSAGE_ITEM = Table(
+    "message_item",
+    _METADATA,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column(
+        "message_id",
+        BigInteger,
+        ForeignKey("message_event.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("position", Integer, nullable=False),
+    Column("item_type", String, nullable=False),
+    Column("renderable", Boolean, nullable=False),
+)
+
+_MESSAGE_ITEM_TEXT = Table(
+    "message_item_text",
+    _METADATA,
+    Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
+    Column("text", Text, nullable=False),
+)
+
+_MESSAGE_ITEM_FILE = Table(
+    "message_item_file",
+    _METADATA,
+    Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
+    Column("source", String, nullable=False),
+    Column("media_type", String, nullable=False),
+    Column("uri", Text, nullable=False),
+    Column("filename", String, nullable=False),
+    Column("bytes", BigInteger, nullable=True),
+    Column("width", Integer, nullable=True),
+    Column("height", Integer, nullable=True),
+    Column("duration_ms", Integer, nullable=True),
+)
+
+_TOOL_CALL = Table(
+    "tool_call",
+    _METADATA,
+    Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
+    Column("call_id", String, nullable=False, unique=True),
+    Column("name", String, nullable=False),
+    Column("label", String, nullable=True),
+    Column("args", JSONB, nullable=False),
+)
+
+_TOOL_RESULT = Table(
+    "tool_result",
+    _METADATA,
+    Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
+    Column("call_id", String, ForeignKey("tool_call.call_id"), nullable=False),
+    Column("status", String, nullable=False),
+    Column("label", String, nullable=True),
+    Column("result", JSONB, nullable=True),
+    Column("error", JSONB, nullable=True),
+)
+
+_SCHEMA_READY = weakref.WeakKeyDictionary()
+_SCHEMA_LOCK = threading.Lock()
+
+
+def _ensure_schema(engine: Engine) -> None:
+    if _SCHEMA_READY.get(engine):
+        return
+    with _SCHEMA_LOCK:
+        if _SCHEMA_READY.get(engine):
+            return
+        _METADATA.create_all(engine)
+        _SCHEMA_READY[engine] = True
+
+
+@event.listens_for(Engine, "engine_connect")
+def _initialize_schema(connection, branch) -> None:
+    if branch:
+        return
+    _ensure_schema(connection.engine)
+
+
 class PostgresChatRepo(ChatRepo):
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
-        self._metadata = MetaData()
+        self._metadata = _METADATA
 
-        self._company = Table(
-            "company",
-            self._metadata,
-            Column("id", String, primary_key=True),
-            Column("name", String, nullable=False),
-            Column("status", String, nullable=False),
-            Column("created_at", DateTime(timezone=True), nullable=False),
-        )
+        self._company = _COMPANY
+        self._office = _OFFICE
+        self._app_user = _APP_USER
+        self._system_prompt = _SYSTEM_PROMPT
+        self._conversation = _CONVERSATION
+        self._message_event = _MESSAGE_EVENT
+        self._message_item = _MESSAGE_ITEM
+        self._message_item_text = _MESSAGE_ITEM_TEXT
+        self._message_item_file = _MESSAGE_ITEM_FILE
+        self._tool_call = _TOOL_CALL
+        self._tool_result = _TOOL_RESULT
 
-        self._office = Table(
-            "office",
-            self._metadata,
-            Column("id", String, primary_key=True),
-            Column("company_id", String, ForeignKey("company.id"), nullable=False),
-            Column("name", String, nullable=False),
-            Column("status", String, nullable=False),
-            Column("created_at", DateTime(timezone=True), nullable=False),
-        )
-
-        self._app_user = Table(
-            "app_user",
-            self._metadata,
-            Column("id", String, primary_key=True),
-            Column("company_id", String, ForeignKey("company.id"), nullable=False),
-            Column("office_id", String, ForeignKey("office.id"), nullable=False),
-            Column("status", String, nullable=False),
-            Column("created_at", DateTime(timezone=True), nullable=False),
-        )
-
-        self._system_prompt = Table(
-            "system_prompt",
-            self._metadata,
-            Column("id", String, primary_key=True),
-            Column("agent_id", String, nullable=False),
-            Column("agent_version", String, nullable=False),
-            Column("prompt_text", Text, nullable=False),
-            Column("prompt_hash", String, nullable=True),
-            Column("created_at", DateTime(timezone=True), nullable=False),
-        )
-
-        self._conversation = Table(
-            "conversation",
-            self._metadata,
-            Column("id", String, primary_key=True),
-            Column("user_id", String, ForeignKey("app_user.id"), nullable=False),
-            Column("agent_id", String, nullable=False),
-            Column("agent_version", String, nullable=False),
-            Column("system_prompt_id", String, ForeignKey("system_prompt.id"), nullable=False),
-            Column("title", String, nullable=True),
-            Column("status", String, nullable=False),
-            Column("created_at", DateTime(timezone=True), nullable=False),
-            Column("deleted_at", DateTime(timezone=True), nullable=True),
-        )
-
-        self._message_event = Table(
-            "message_event",
-            self._metadata,
-            Column("id", BigInteger, primary_key=True, autoincrement=True),
-            Column("message_uid", String, nullable=False, unique=True),
-            Column("conversation_id", String, ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False),
-            Column("seq", BigInteger, nullable=False),
-            Column("role", String, nullable=False),
-            Column("created_at", DateTime(timezone=True), nullable=False),
-            Column("request_id", String, nullable=True),
-            Column(
-                "response_to",
-                String,
-                ForeignKey("message_event.message_uid", ondelete="SET NULL"),
-                nullable=True,
-            ),
-            Column("meta", JSONB, nullable=True),
-        )
-
-        self._message_item = Table(
-            "message_item",
-            self._metadata,
-            Column("id", BigInteger, primary_key=True, autoincrement=True),
-            Column(
-                "message_id",
-                BigInteger,
-                ForeignKey("message_event.id", ondelete="CASCADE"),
-                nullable=False,
-            ),
-            Column("position", Integer, nullable=False),
-            Column("item_type", String, nullable=False),
-            Column("renderable", Boolean, nullable=False),
-        )
-
-        self._message_item_text = Table(
-            "message_item_text",
-            self._metadata,
-            Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
-            Column("text", Text, nullable=False),
-        )
-
-        self._message_item_file = Table(
-            "message_item_file",
-            self._metadata,
-            Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
-            Column("source", String, nullable=False),
-            Column("media_type", String, nullable=False),
-            Column("uri", Text, nullable=False),
-            Column("filename", String, nullable=False),
-            Column("bytes", BigInteger, nullable=True),
-            Column("width", Integer, nullable=True),
-            Column("height", Integer, nullable=True),
-            Column("duration_ms", Integer, nullable=True),
-        )
-
-        self._tool_call = Table(
-            "tool_call",
-            self._metadata,
-            Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
-            Column("call_id", String, nullable=False, unique=True),
-            Column("name", String, nullable=False),
-            Column("label", String, nullable=True),
-            Column("args", JSONB, nullable=False),
-        )
-
-        self._tool_result = Table(
-            "tool_result",
-            self._metadata,
-            Column("item_id", BigInteger, ForeignKey("message_item.id", ondelete="CASCADE"), primary_key=True),
-            Column("call_id", String, ForeignKey("tool_call.call_id"), nullable=False),
-            Column("status", String, nullable=False),
-            Column("label", String, nullable=True),
-            Column("result", JSONB, nullable=True),
-            Column("error", JSONB, nullable=True),
-        )
-
-        self._metadata.create_all(self._engine)
+        _ensure_schema(self._engine)
 
     def load_chat(self, chat_id: str, user_id: str | None = None) -> Chat:
         with self._engine.begin() as connection:
@@ -199,6 +237,10 @@ class PostgresChatRepo(ChatRepo):
             agent_id=conversation_row.agent_id,
             agent_version=conversation_row.agent_version,
             system_prompt_id=conversation_row.system_prompt_id,
+            created_at=self._format_datetime(conversation_row.created_at),
+            status=conversation_row.status,
+            title=conversation_row.title,
+            deleted_at=self._format_datetime(conversation_row.deleted_at) if conversation_row.deleted_at else None,
         )
 
         with self._engine.begin() as connection:
@@ -238,22 +280,43 @@ class PostgresChatRepo(ChatRepo):
 
         with self._engine.begin() as connection:
             existing = connection.execute(
-                select(self._conversation.c.created_at).where(self._conversation.c.id == chat.id)
+                select(
+                    self._conversation.c.created_at,
+                    self._conversation.c.status,
+                    self._conversation.c.title,
+                    self._conversation.c.deleted_at,
+                ).where(self._conversation.c.id == chat.id)
             ).one_or_none()
-            created_at = existing[0] if existing else now
+            existing_created_at = existing[0] if existing else None
+            existing_status = existing[1] if existing else None
+            existing_title = existing[2] if existing else None
+            existing_deleted_at = existing[3] if existing else None
+
+            created_at = (
+                self._parse_datetime(chat.created_at)
+                if chat.created_at
+                else (existing_created_at or now)
+            )
+            status = chat.status or existing_status or "active"
+            title = chat.title if chat.title is not None else existing_title
+            deleted_at = (
+                self._parse_datetime(chat.deleted_at)
+                if chat.deleted_at
+                else existing_deleted_at
+            )
 
             connection.execute(
-                insert(self._conversation)
+                pg_insert(self._conversation)
                 .values(
                     id=chat.id,
                     user_id=chat.user_id,
                     agent_id=chat.agent_id,
                     agent_version=chat.agent_version,
                     system_prompt_id=chat.system_prompt_id,
-                    title=None,
-                    status="active",
+                    title=title,
+                    status=status,
                     created_at=created_at,
-                    deleted_at=None,
+                    deleted_at=deleted_at,
                 )
                 .on_conflict_do_update(
                     index_elements=[self._conversation.c.id],
@@ -262,9 +325,9 @@ class PostgresChatRepo(ChatRepo):
                         "agent_id": chat.agent_id,
                         "agent_version": chat.agent_version,
                         "system_prompt_id": chat.system_prompt_id,
-                        "title": None,
-                        "status": "active",
-                        "deleted_at": None,
+                        "title": title,
+                        "status": status,
+                        "deleted_at": deleted_at,
                     },
                 )
             )

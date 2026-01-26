@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, MetaData, String, Table, Text, select
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, MetaData, String, Table, Text, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 
@@ -20,7 +22,7 @@ class PostgresSystemPromptRepo(SystemPromptRepo):
             Column("agent_version", String, nullable=False),
             Column("prompt_text", Text, nullable=False),
             Column("prompt_hash", String, nullable=True),
-            Column("created_at", String, nullable=True),
+            Column("created_at", DateTime(timezone=True), nullable=True),
         )
         self._metadata.create_all(self._engine)
 
@@ -39,24 +41,25 @@ class PostgresSystemPromptRepo(SystemPromptRepo):
         if result is None:
             raise ValueError(f"System prompt not found: {prompt_id}")
         return SystemPrompt(
-            prompt_id=result[0],
+            id=result[0],
             agent_id=result[1],
             agent_version=result[2],
             prompt_text=result[3],
             prompt_hash=result[4],
-            created_at=result[5],
+            created_at=self._format_datetime(result[5]) if result[5] else None,
         )
 
     def save_prompt(self, prompt: SystemPrompt) -> None:
+        created_at = self._parse_datetime(prompt.created_at) if prompt.created_at else None
         stmt = (
             insert(self._prompts)
             .values(
-                id=prompt.prompt_id,
+                id=prompt.id,
                 agent_id=prompt.agent_id,
                 agent_version=prompt.agent_version,
                 prompt_text=prompt.prompt_text,
                 prompt_hash=prompt.prompt_hash,
-                created_at=prompt.created_at,
+                created_at=created_at,
             )
             .on_conflict_do_update(
                 index_elements=[self._prompts.c.id],
@@ -65,9 +68,19 @@ class PostgresSystemPromptRepo(SystemPromptRepo):
                     "agent_version": prompt.agent_version,
                     "prompt_text": prompt.prompt_text,
                     "prompt_hash": prompt.prompt_hash,
-                    "created_at": prompt.created_at,
+                    "created_at": created_at,
                 },
             )
         )
         with self._engine.begin() as connection:
             connection.execute(stmt)
+
+    @staticmethod
+    def _parse_datetime(value: str) -> datetime:
+        if value.endswith("Z"):
+            value = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(value)
+
+    @staticmethod
+    def _format_datetime(value: datetime) -> str:
+        return value.astimezone(timezone.utc).isoformat()

@@ -65,7 +65,7 @@ def build_chat_engine(
 
     system_prompt_repo.save_prompt(
         SystemPrompt(
-            prompt_id=system_prompt_id,
+            id=system_prompt_id,
             agent_id=agent_id,
             agent_version=agent_version,
             prompt_text=system_prompt_text,
