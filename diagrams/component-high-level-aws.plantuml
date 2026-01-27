@@ -1,0 +1,54 @@
+@startuml
+skinparam componentStyle uml2
+skinparam shadowing false
+skinparam linetype ortho
+skinparam componentBackgroundColor transparent
+skinparam databaseBackgroundColor transparent
+skinparam actorBackgroundColor transparent
+
+actor User as user
+
+component "Web / Mobile UI" as ui
+component "Edge (API Gateway / ALB)" as edge
+component "Conversation" as conversation
+component "Maitre" as maitre
+component "Brain" as brain
+component "BI" as bi
+
+database "Conversation DB (RDS)" as conversationDb
+database "Maitre DB (RDS)" as maitreDb
+database "Brain DB (RDS)" as brainDb
+database "BI DB (RDS)" as biDb
+component "Cache (ElastiCache/Redis)" as cache
+component "Object Storage (S3)" as s3
+
+user --> ui : use
+ui --> edge : HTTPS / WS
+edge --> conversation : route
+
+conversation --> maitre : domain ops
+conversation --> brain : domain ops
+conversation --> bi : domain ops
+
+conversation --> conversationDb : persist
+maitre --> maitreDb : persist
+brain --> brainDb : persist
+bi --> biDb : persist
+
+conversation --> cache : context cache
+
+conversation --> s3 : large payloads?
+maitre --> s3 : artifacts?
+
+note right of cache
+Cache placement is open:
+- Option A: Conversation Service only
+- Option B: Shared cache (edge or dedicated)
+end note
+
+note right of conversationDb
+Each microservice owns its DB
+for internal data.
+end note
+
+@enduml
