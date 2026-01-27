@@ -27,16 +27,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy import event
 
 from ..domain.chat import Chat
-from ..domain.file import (
-    AudioContent,
-    AudioMessage,
-    FileContent,
-    FileMessage,
-    ImageContent,
-    ImageMessage,
-    VideoContent,
-    VideoMessage,
-)
+from ..domain.file import FileContent, FileMessage
 from ..domain.message import (
     Content,
     Message,
@@ -156,9 +147,6 @@ _MESSAGE_ITEM_FILE = Table(
     Column("uri", Text, nullable=False),
     Column("filename", String, nullable=False),
     Column("bytes", BigInteger, nullable=True),
-    Column("width", Integer, nullable=True),
-    Column("height", Integer, nullable=True),
-    Column("duration_ms", Integer, nullable=True),
 )
 
 _TOOL_CALL = Table(
@@ -384,7 +372,7 @@ class PostgresChatRepo(ChatRepo):
                 )
                 continue
 
-            if isinstance(item, (FileMessage, ImageMessage, AudioMessage, VideoMessage)):
+            if isinstance(item, FileMessage):
                 connection.execute(
                     insert(self._message_item_file)
                     .values(
@@ -394,9 +382,6 @@ class PostgresChatRepo(ChatRepo):
                         uri=item.data.uri,
                         filename=item.data.filename,
                         bytes=item.data.bytes,
-                        width=getattr(item.data, "width", None),
-                        height=getattr(item.data, "height", None),
-                        duration_ms=getattr(item.data, "duration_ms", None),
                     )
                 )
                 continue
@@ -455,7 +440,7 @@ class PostgresChatRepo(ChatRepo):
                 )
                 continue
 
-            if item_type in {"file", "image", "audio", "video"}:
+            if item_type == "file":
                 file_row = connection.execute(
                     select(self._message_item_file).where(
                         self._message_item_file.c.item_id == row.id
@@ -509,12 +494,6 @@ class PostgresChatRepo(ChatRepo):
     def _resolve_item_type(item: Any) -> tuple[str, bool]:
         if isinstance(item, TextMessage):
             return "text", item.renderable
-        if isinstance(item, ImageMessage):
-            return "image", item.renderable
-        if isinstance(item, AudioMessage):
-            return "audio", item.renderable
-        if isinstance(item, VideoMessage):
-            return "video", item.renderable
         if isinstance(item, FileMessage):
             return "file", item.renderable
         if isinstance(item, ToolCallMessage):
@@ -525,46 +504,6 @@ class PostgresChatRepo(ChatRepo):
 
     @staticmethod
     def _build_file_message(item_type: str, row, renderable: bool) -> Message:
-        if item_type == "image":
-            return ImageMessage(
-                type="image",
-                renderable=renderable,
-                data=ImageContent(
-                    source=row.source,
-                    media_type=row.media_type,
-                    uri=row.uri,
-                    filename=row.filename,
-                    bytes=row.bytes,
-                    width=row.width,
-                    height=row.height,
-                ),
-            )
-        if item_type == "audio":
-            return AudioMessage(
-                type="audio",
-                renderable=renderable,
-                data=AudioContent(
-                    source=row.source,
-                    media_type=row.media_type,
-                    uri=row.uri,
-                    filename=row.filename,
-                    bytes=row.bytes,
-                    duration_ms=row.duration_ms,
-                ),
-            )
-        if item_type == "video":
-            return VideoMessage(
-                type="video",
-                renderable=renderable,
-                data=VideoContent(
-                    source=row.source,
-                    media_type=row.media_type,
-                    uri=row.uri,
-                    filename=row.filename,
-                    bytes=row.bytes,
-                    duration_ms=row.duration_ms,
-                ),
-            )
         return FileMessage(
             type="file",
             renderable=renderable,

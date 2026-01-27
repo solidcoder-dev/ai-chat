@@ -98,9 +98,6 @@
       "description": "A single renderable or non-renderable item within a message.",
       "oneOf": [
         { "$ref": "#/$defs/TextItem" },
-        { "$ref": "#/$defs/ImageItem" },
-        { "$ref": "#/$defs/AudioItem" },
-        { "$ref": "#/$defs/VideoItem" },
         { "$ref": "#/$defs/FileItem" },
         { "$ref": "#/$defs/ToolCallItem" },
         { "$ref": "#/$defs/ToolResultItem" }
@@ -118,39 +115,6 @@
           "description": "Whether this item should be rendered to end users."
         },
         "data": { "$ref": "#/$defs/TextData" }
-      }
-    },
-
-    "ImageItem": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "renderable", "data"],
-      "properties": {
-        "type": { "const": "image", "description": "Specialized file item for images." },
-        "renderable": { "const": true, "description": "Whether this item should be rendered to end users." },
-        "data": { "$ref": "#/$defs/ImageData" }
-      }
-    },
-
-    "AudioItem": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "renderable", "data"],
-      "properties": {
-        "type": { "const": "audio", "description": "Specialized file item for audio." },
-        "renderable": { "const": true, "description": "Whether this item should be rendered to end users." },
-        "data": { "$ref": "#/$defs/AudioData" }
-      }
-    },
-
-    "VideoItem": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "renderable", "data"],
-      "properties": {
-        "type": { "const": "video", "description": "Specialized file item for video." },
-        "renderable": { "const": true, "description": "Whether this item should be rendered to end users." },
-        "data": { "$ref": "#/$defs/VideoData" }
       }
     },
 
@@ -269,68 +233,6 @@
           }
         }
       ]
-    },
-
-    "ImageData": {
-      "allOf": [
-        { "$ref": "#/$defs/FileData" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "media_type": { "pattern": "^image\\/(png|jpeg|webp)$" },
-            "width": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Pixel width (if known)."
-            },
-            "height": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Pixel height (if known)."
-            }
-          }
-        }
-      ],
-      "description": "Image-specific file payload."
-    },
-
-    "AudioData": {
-      "allOf": [
-        { "$ref": "#/$defs/FileData" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "media_type": { "pattern": "^audio\\/(mpeg|mp4|wav|webm|ogg)$" },
-            "duration_ms": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Audio duration in milliseconds (if known)."
-            }
-          }
-        }
-      ],
-      "description": "Audio-specific file payload."
-    },
-
-    "VideoData": {
-      "allOf": [
-        { "$ref": "#/$defs/FileData" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "media_type": { "pattern": "^video\\/(mp4|webm|ogg)$" },
-            "duration_ms": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Video duration in milliseconds (if known)."
-            }
-          }
-        }
-      ],
-      "description": "Video-specific file payload."
     },
 
     "ToolCallData": {

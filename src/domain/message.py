@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal, Optional, Sequence, Union
 
-from .file import AudioMessage, FileMessage, ImageMessage, VideoMessage
+from .file import FileMessage
 from .meta import Meta
 from .tool import ToolCall, ToolResult
 
@@ -39,9 +39,6 @@ class ToolResultMessage:
 
 MessagePart = Union[
     TextMessage,
-    ImageMessage,
-    AudioMessage,
-    VideoMessage,
     FileMessage,
     ToolCallMessage,
     ToolResultMessage,

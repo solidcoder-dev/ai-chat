@@ -81,9 +81,6 @@ entity "message_item_file" as message_item_file {
   uri
   filename
   bytes
-  width
-  height
-  duration_ms
 }
 
 entity "tool_call" as tool_call {

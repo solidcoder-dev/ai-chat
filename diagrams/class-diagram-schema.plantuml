@@ -1,0 +1,147 @@
+@startuml
+title JSON Schema Class Diagram (All Schemas)
+skinparam classAttributeIconSize 0
+
+class Conversation {
+  +id: string
+  +userId: string
+  +createdAt: datetime
+  +status: "active"|"archived"
+  +agentId: string
+  +agentVersion: semver
+  +systemPromptId: string
+  +title?: string
+  +deletedAt?: datetime
+}
+
+class SystemPrompt {
+  +id: string
+  +agentId: string
+  +agentVersion: semver
+  +promptText: string
+  +promptHash?: string
+  +createdAt: datetime
+}
+
+class ConversationAggregate {
+  +conversation: Conversation
+  +systemPrompt: SystemPrompt
+  +messages: MessageEvent[]
+}
+
+class MessageEvent {
+  +type: "message"
+  +messageId: string
+  +conversationId: string
+  +seq: int
+  +role: "user"|"assistant"|"system"
+  +createdAt: datetime
+  +requestId?: string
+  +responseTo?: string
+  +content: MessageContent
+  +_meta?: Meta
+}
+
+class MessageContent {
+  +items: Item[]
+}
+
+abstract class Item {
+  +type: string
+  +renderable: boolean
+}
+
+class TextItem {
+  +type: "text"
+  +renderable: true
+  +data: TextData
+}
+
+class FileItem {
+  +type: "file"
+  +renderable: true
+  +data: FileData
+}
+
+class ToolCallItem {
+  +type: "tool_call"
+  +renderable: false
+  +data: ToolCallData
+}
+
+class ToolResultItem {
+  +type: "tool_result"
+  +renderable: false
+  +data: ToolResultData
+}
+
+class TextData {
+  +text: string
+}
+
+class FileData {
+  +source: "uri"|"base64"
+  +media_type: string
+  +uri: string
+  +filename: string
+  +bytes?: int
+}
+
+class ToolCallData {
+  +call_id: string
+  +name: string
+  +args: object
+  +label?: string
+}
+
+class ToolResultData {
+  +call_id: string
+  +status: "ok"|"error"
+  +result?: any
+  +error?: object
+  +label?: string
+}
+
+class Meta {
+  +client_msg_id?: string
+  +request_id?: string
+  +trace_id?: string
+  +model?: string
+  +agent_id?: string
+  +agent_version?: semver
+  +system_prompt_id?: string
+  +timing_ms?: TimingMs
+  +tokens?: TokenCounts
+}
+
+class TimingMs {
+  +total?: number
+  +llm?: number
+  +db?: number
+  +cache?: number
+  +upload?: number
+}
+
+class TokenCounts {
+  +input?: int
+  +output?: int
+}
+
+ConversationAggregate --> Conversation
+ConversationAggregate --> SystemPrompt
+ConversationAggregate --> MessageEvent
+
+MessageEvent --> MessageContent
+MessageEvent --> Meta
+MessageContent --> Item
+
+Item <|-- TextItem
+Item <|-- FileItem
+Item <|-- ToolCallItem
+Item <|-- ToolResultItem
+
+TextItem --> TextData
+FileItem --> FileData
+ToolCallItem --> ToolCallData
+ToolResultItem --> ToolResultData
+@enduml

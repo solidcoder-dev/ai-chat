@@ -130,8 +130,7 @@ CREATE TABLE message_item (
   position      INTEGER NOT NULL,
   item_type     VARCHAR(32) NOT NULL CHECK (
     item_type IN (
-      'text','image','audio','video',
-      'file','artifact','tool_call','tool_result'
+      'text','file','artifact','tool_call','tool_result'
     )
   ),
   renderable    BOOLEAN NOT NULL,
@@ -165,10 +164,7 @@ CREATE TABLE message_item_file (
   media_type VARCHAR(128) NOT NULL,
   uri     TEXT NOT NULL,
   filename VARCHAR(512) NOT NULL,
-  bytes    BIGINT CHECK (bytes >= 0),
-  width    INTEGER CHECK (width >= 1),
-  height   INTEGER CHECK (height >= 1),
-  duration_ms INTEGER CHECK (duration_ms >= 1)
+  bytes    BIGINT CHECK (bytes >= 0)
 );
 
 ```

@@ -1,0 +1,68 @@
+@startuml
+title High-Level Class Diagram (Frontend, Core Service, Agents)
+skinparam classAttributeIconSize 0
+
+package "Frontend" {
+  class WebApp {
+    +sendMessage(chatId, text)
+    +renderStream(events)
+  }
+}
+
+package "Core Service" {
+  class APILayer {
+    +handleWebSocket()
+    +handleHttp()
+  }
+
+  class ChatModule {
+    +loadConversation()
+    +appendMessage()
+    +streamEvents()
+  }
+
+  class ArtifactModule {
+    +lookupArtifact()
+    +storeArtifact()
+  }
+
+  class DataStore {
+    +read()
+    +write()
+  }
+
+  class CacheStore {
+    +get()
+    +set()
+  }
+
+  class ObjectStore {
+    +getObject()
+    +putObject()
+  }
+}
+
+package "AI Agents" {
+  class AgentService {
+    +infer()
+    +streamToolCalls()
+  }
+
+  class MaitreAgent
+  class BIAgent
+  class BrainAgent
+}
+
+WebApp --> APILayer : WebSocket/HTTPS
+APILayer --> ChatModule
+APILayer --> ArtifactModule
+ChatModule --> DataStore : Postgres
+ChatModule --> CacheStore : Redis
+ArtifactModule --> DataStore : Postgres
+ArtifactModule --> ObjectStore : S3
+APILayer --> AgentService : gRPC
+
+AgentService <|-- MaitreAgent
+AgentService <|-- BIAgent
+AgentService <|-- BrainAgent
+@enduml

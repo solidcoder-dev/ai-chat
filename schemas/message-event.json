@@ -112,9 +112,6 @@
     "Item": {
       "oneOf": [
         { "$ref": "#/$defs/TextItem" },
-        { "$ref": "#/$defs/ImageItem" },
-        { "$ref": "#/$defs/AudioItem" },
-        { "$ref": "#/$defs/VideoItem" },
         { "$ref": "#/$defs/FileItem" },
         { "$ref": "#/$defs/ToolCallItem" },
         { "$ref": "#/$defs/ToolResultItem" }
@@ -140,39 +137,6 @@
             }
           }
         }
-      }
-    },
-
-    "ImageItem": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "renderable", "data"],
-      "properties": {
-        "type": { "const": "image" },
-        "renderable": { "const": true },
-        "data": { "$ref": "#/$defs/ImageData" }
-      }
-    },
-
-    "AudioItem": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "renderable", "data"],
-      "properties": {
-        "type": { "const": "audio" },
-        "renderable": { "const": true },
-        "data": { "$ref": "#/$defs/AudioData" }
-      }
-    },
-
-    "VideoItem": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "renderable", "data"],
-      "properties": {
-        "type": { "const": "video" },
-        "renderable": { "const": true },
-        "data": { "$ref": "#/$defs/VideoData" }
       }
     },
 
@@ -221,49 +185,6 @@
         "filename": { "type": "string" },
         "bytes": { "type": "integer", "minimum": 0 }
       }
-    },
-
-    "ImageData": {
-      "allOf": [
-        { "$ref": "#/$defs/FileData" },
-        {
-          "properties": {
-            "mediaType": {
-              "pattern": "^image\\/(png|jpeg|webp)$"
-            },
-            "width": { "type": "integer", "minimum": 1 },
-            "height": { "type": "integer", "minimum": 1 }
-          }
-        }
-      ]
-    },
-
-    "AudioData": {
-      "allOf": [
-        { "$ref": "#/$defs/FileData" },
-        {
-          "properties": {
-            "mediaType": {
-              "pattern": "^audio\\/(mpeg|mp4|wav|webm|ogg)$"
-            },
-            "durationMs": { "type": "integer", "minimum": 1 }
-          }
-        }
-      ]
-    },
-
-    "VideoData": {
-      "allOf": [
-        { "$ref": "#/$defs/FileData" },
-        {
-          "properties": {
-            "mediaType": {
-              "pattern": "^video\\/(mp4|webm|ogg)$"
-            },
-            "durationMs": { "type": "integer", "minimum": 1 }
-          }
-        }
-      ]
     },
 
     "ToolCallData": {
