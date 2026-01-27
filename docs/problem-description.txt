@@ -1,0 +1,31 @@
+Problem Description
+
+- Existe un sistema con chats especializados por tipo (maitre, bi, brain, consultas, etc.).
+- Se requiere persistir el historial completo de cada conversación.
+- El historial debe incluir solo lo que el usuario ve, sin detalles internos del sistema.
+- La relación de propiedad es: empresa -> oficina -> usuario -> chat.
+- Los mensajes tienen timestamp y un orden estable por secuencia.
+- El historial debe ser inmutable.
+- No hay anonimización por ahora.
+- Los chats pueden borrarse, pero no se eliminan por completo de la persistencia.
+- Se espera un volumen aproximado de ~300 mensajes por chat; el tamaño total es indefinido.
+- No hay búsqueda hoy, pero es un requisito potencial futuro.
+- Se pueden enviar textos y archivos (audio, video, imagenes, otros).
+- El titulo del chat es editable.
+- Idioma: se debe registrar el idioma principal del chat.
+- El versionado es deseable, aunque no requerido en la primera version.
+- Estados del chat: activo, archivado, borrado.
+
+Technical Requirements
+
+- Arquitectura basada en microservicios.
+- Comunicacion en tiempo real para el chat.
+- Seguridad: autenticacion y autorizacion centralizada.
+- Observabilidad basica (logs, metricas, trazas) sin exponer contenido interno.
+- Escalabilidad y tolerancia a fallos.
+- Politica de retencion y archivado configurable.
+- Versionado del modelo/API.
+- Idempotencia en operaciones de escritura.
+- Limites de tamano por mensaje y archivo.
+- Seguridad de datos en transito y en reposo.
+- Mecanismo de migraciones y rollback seguro.
