@@ -51,7 +51,7 @@
     },
     "_meta": {
       "$ref": "#/$defs/Meta",
-      "description": "Metadata for observability. Fields: clientMsgId, requestId, traceId, model, agentId, agentVersion, systemPromptId, timingMs, tokens."
+      "description": "Metadata for observability. Fields: clientMsgId, requestId, traceId, model, tokens."
     }
   },
 
@@ -232,23 +232,6 @@
         "requestId": { "type": "string" },
         "traceId": { "type": "string" },
         "model": { "type": "string" },
-        "agentId": { "type": "string" },
-        "agentVersion": {
-          "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$"
-        },
-        "systemPromptId": { "type": "string" },
-        "timingMs": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "total": { "type": "number", "minimum": 0 },
-            "llm": { "type": "number", "minimum": 0 },
-            "db": { "type": "number", "minimum": 0 },
-            "cache": { "type": "number", "minimum": 0 },
-            "upload": { "type": "number", "minimum": 0 }
-          }
-        },
         "tokens": {
           "type": "object",
           "additionalProperties": false,

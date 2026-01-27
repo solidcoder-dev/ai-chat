@@ -40,7 +40,7 @@
     },
     "_meta": {
       "$ref": "#/$defs/Meta",
-      "description": "Metadata for observability. Fields: client_msg_id, request_id, trace_id, model, agent_id, agent_version, system_prompt_id, timing_ms, tokens."
+      "description": "Metadata for observability. Fields: client_msg_id, request_id, trace_id, model, tokens."
     }
   },
   "allOf": [
@@ -322,30 +322,6 @@
         "model": {
           "type": "string",
           "description": "Model identifier used to generate assistant content."
-        },
-        "agent_id": {
-          "type": "string",
-          "description": "Agent identifier used to generate assistant content."
-        },
-        "agent_version": {
-          "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$",
-          "description": "Semantic version of the agent."
-        },
-        "system_prompt_id": {
-          "type": "string",
-          "description": "System prompt identifier tied to this message."
-        },
-        "timing_ms": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "total": { "type": "number", "minimum": 0, "description": "End-to-end duration." },
-            "llm": { "type": "number", "minimum": 0, "description": "Model execution duration." },
-            "db": { "type": "number", "minimum": 0, "description": "Database time." },
-            "cache": { "type": "number", "minimum": 0, "description": "Cache time." },
-            "upload": { "type": "number", "minimum": 0, "description": "Upload time for external media (if any)." }
-          }
         },
         "tokens": {
           "type": "object",

@@ -527,30 +527,13 @@ class PostgresChatRepo(ChatRepo):
         return value.astimezone(timezone.utc).isoformat()
 
     def _deserialize_meta(self, payload: dict[str, Any]) -> Meta:
-        timing = payload.get("timing_ms")
         tokens = payload.get("tokens")
         return Meta(
             client_msg_id=payload.get("client_msg_id"),
             request_id=payload.get("request_id"),
             trace_id=payload.get("trace_id"),
             model=payload.get("model"),
-            agent_id=payload.get("agent_id"),
-            agent_version=payload.get("agent_version"),
-            system_prompt_id=payload.get("system_prompt_id"),
-            timing_ms=self._deserialize_timing(timing) if timing else None,
             tokens=self._deserialize_tokens(tokens) if tokens else None,
-        )
-
-    @staticmethod
-    def _deserialize_timing(payload: dict[str, Any]):
-        from ..domain.timing_ms import TimingMs
-
-        return TimingMs(
-            total=payload.get("total"),
-            llm=payload.get("llm"),
-            db=payload.get("db"),
-            cache=payload.get("cache"),
-            upload=payload.get("upload"),
         )
 
     @staticmethod

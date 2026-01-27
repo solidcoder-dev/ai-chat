@@ -101,25 +101,17 @@ class ToolResultData {
   +error?: object
   +label?: string
 }
+note right of ToolResultData
+  result puede incluir artifact_id
+  para datos externos (tabla/doc)
+end note
 
 class Meta {
   +client_msg_id?: string
   +request_id?: string
   +trace_id?: string
   +model?: string
-  +agent_id?: string
-  +agent_version?: semver
-  +system_prompt_id?: string
-  +timing_ms?: TimingMs
   +tokens?: TokenCounts
-}
-
-class TimingMs {
-  +total?: number
-  +llm?: number
-  +db?: number
-  +cache?: number
-  +upload?: number
 }
 
 class TokenCounts {
