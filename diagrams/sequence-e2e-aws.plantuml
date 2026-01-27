@@ -3,12 +3,14 @@ title AWS E2E Chat Flow (WebSocket + gRPC Streaming)
 autonumber
 
 actor User
+
 box "AWS"
 participant "Frontend\n(S3 + CloudFront)" as FE
 participant "API Gateway / ALB\nWebSocket + HTTPS" as APIGW
 participant "Core Service API\n(ECS Fargate)" as ChatSvc
 database "RDS/Aurora\nPostgres" as DB
 database "ElastiCache\nRedis" as Cache
+participant "S3" as S3
 participant "Agent Service\n(ECS Fargate)" as Agent
 end box
 
@@ -32,12 +34,18 @@ ChatSvc -> Agent: gRPC stream start (request_id, history, agent_id, agent_versio
 activate Agent
 
 loop Tool calls / intermediate steps
-  Agent -> ChatSvc: stream event tool_call/tool_result
+  Agent -> ChatSvc: stream event tool_call / tool_result
+  ChatSvc -> S3: Lookup artifact/files (when needed)
   ChatSvc -> DB: Persist event
-  ChatSvc -> APIGW: WS event "message" (tool_call/tool_result)
-  APIGW -> FE: WS event "message" (tool_call/tool_result)
-  FE -> User: Render step/status update
+  ChatSvc -> APIGW: WS event "message" (tool_call / tool_result)
+  APIGW -> FE: WS event "message" (tool_call / tool_result)
+  FE -> User: Render step / status update
 end
+
+note right of DB
+  tool_result.result se persiste como JSONB
+  para soportar payloads flexibles
+end note
 
 Agent -> ChatSvc: stream event assistant_final
 deactivate Agent
