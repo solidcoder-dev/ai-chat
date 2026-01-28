@@ -26,7 +26,7 @@ MVP Workflow (simple and functional)
 5) Specialist Responder reads history via Message Store and updates cache.
 6) Specialist Responder generates response -> Message Store (message_store_db).
 7) Realtime Gateway publishes the response.
-8) Domain actions (edit/confirm) go to Specialist endpoints; Specialist updates its DB and writes a visible summary to Message Store.
+8) Domain actions (edit/confirm) go to Specialist endpoints; Specialist updates its DB and writes a visible summary to Message Store (meta.domain_entity_id).
 9) Files: Specialist Data Stores + Specialist Blob Storage.
 
 Full Workflow (microservices + best practices)
@@ -40,7 +40,7 @@ Full Workflow (microservices + best practices)
    - History Query reads history_read_db (projection of message_store_db) and updates cache.
 7) Specialist Responder generates response -> Message Store (message_store_db) + Outbox -> Event Bus.
 8) Realtime Gateway publishes the response.
-9) Domain actions (edit/confirm) go to Specialist endpoints; Specialist updates its DB and writes a visible summary to Message Store.
+9) Domain actions (edit/confirm) go to Specialist endpoints; Specialist updates its DB and writes a visible summary to Message Store (meta.domain_entity_id).
 10) Files: Specialist Data Stores + Specialist Blob Storage.
 11) Retention & Archive applies policies on chat_registry_db and message_store_db.
 12) Observability Stack receives logs/metrics/traces.

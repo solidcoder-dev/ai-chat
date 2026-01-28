@@ -1,7 +1,5 @@
 @startuml
 hide footbox
-
-author "Itinerary Full Flow"
 actor Client
 boundary "API Gateway\n(AWS API Gateway)" as APIGW
 participant "Identity & Access Control" as IAM
@@ -20,7 +18,7 @@ participant "Specialist Data Store" as SpecDB
 database "Specialist Blob Storage\n(Amazon S3)" as SpecBlob
 
 == User asks for an itinerary ==
-Client -> APIGW : Send message (HTTPS)
+Client -> APIGW : Send message (HTTPS)\n\"Quiero 5 días en Japón, presupuesto 1500€, me gusta comida y templos.\"
 APIGW -> IAM : Validate token
 IAM -> Keycloak : OIDC/OAuth2
 Keycloak --> IAM : OK
@@ -47,7 +45,7 @@ Tools --> Specialist : tool_result
 Specialist -> SpecDB : Store tool_call/tool_result
 
 Specialist -> SpecDB : Create itinerary (itinerary_id=it_123)
-Specialist -> MsgStore : Write assistant summary (meta.itinerary_id=it_123)
+Specialist -> MsgStore : Write assistant summary\n\"Listo, aquí tienes un itinerario de 5 días.\" + meta.itinerary_id=it_123
 MsgStore -> Outbox : Append event
 Outbox -> EventBus : Publish
 EventBus -> RTGW : Fan-out
@@ -61,11 +59,11 @@ Keycloak --> IAM : OK
 IAM --> APIGW : OK
 APIGW -> Specialist : Fetch itinerary
 Specialist -> SpecDB : Read itinerary details
-Specialist --> APIGW : Itinerary details
+Specialist --> APIGW : Itinerary details\nDay 1: Tokyo (Senso-ji, Asakusa, food)\nDay 2: Kyoto (Fushimi Inari, Gion)\nDay 3: Nara (Todai-ji)\nDay 4: Osaka (Dotonbori)\nDay 5: Tokyo (Shibuya, shopping)
 APIGW --> Client : Itinerary details
 
 == Client edits itinerary ==
-Client -> APIGW : POST /itinerary/it_123/edit
+Client -> APIGW : POST /itinerary/it_123/edit\n\"Cambia el día 2 a Kyoto y añade un tour gastronómico.\"
 APIGW -> IAM : Validate token
 IAM -> Keycloak : OIDC/OAuth2
 Keycloak --> IAM : OK
@@ -74,7 +72,7 @@ APIGW -> ChatReg : Validate chat
 ChatReg --> APIGW : OK
 APIGW -> Specialist : Execute edit action
 Specialist -> SpecDB : Update itinerary
-Specialist -> MsgStore : Write visible summary
+Specialist -> MsgStore : Write visible summary\n\"He actualizado el Día 2 a Kyoto y añadí un tour gastronómico.\"
 MsgStore -> Outbox : Append event
 Outbox -> EventBus : Publish
 EventBus -> RTGW : Fan-out

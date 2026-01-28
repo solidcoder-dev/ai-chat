@@ -3,52 +3,52 @@ skinparam componentStyle rectangle
 
 actor "Client (Browser)" as Client
 
-rectangle "External Systems" {
-  rectangle "Keycloak\n(External Auth)" as Keycloak
+package "External Systems" {
+  component "Keycloak\n(External Auth)" as Keycloak
 }
 
-rectangle "Tripilots" {
-  rectangle "API Gateway\n(AWS API Gateway)" as APIGW
+package "Tripilots" {
+  component "API Gateway\n(AWS API Gateway)" as APIGW
 
   package "Identity & Access Control (MVP)" {
-    rectangle "Identity & Access Control" as IAM
+    component "Identity & Access Control" as IAM
     database "identity_db\n(AWS Managed DB)" as IdentityDB
   }
 
   package "Chat Registry (MVP)" {
-    rectangle "Chat Registry" as ChatReg
+    component "Chat Registry" as ChatReg
     database "chat_registry_db\n(AWS Managed DB)" as ChatRegDB
   }
 
   package "Message Store (MVP)" {
-    rectangle "Message Store" as MsgStore
-    rectangle "Outbox" as Outbox
-    rectangle "Event Bus\n(Amazon EventBridge)" as EventBus
-    rectangle "History Query" as HistoryQuery
-    rectangle "Conversation Cache\n(AWS ElastiCache)" as ConvCache
+    component "Message Store" as MsgStore
+    component "Outbox" as Outbox
+    component "Event Bus\n(Amazon EventBridge)" as EventBus
+    component "History Query" as HistoryQuery
+    database "Conversation Cache\n(AWS ElastiCache)" as ConvCache
     database "message_store_db\n(AWS Managed DB)" as MsgDB
     database "history_read_db\n(AWS Managed DB)" as HistoryDB
   }
 
   package "Realtime Gateway (MVP)" {
-    rectangle "Realtime Gateway\n(AWS API Gateway SSE)" as RTGW
+    component "Realtime Gateway\n(AWS API Gateway SSE)" as RTGW
   }
 
   package "Specialist Responders (MVP)" {
-    rectangle "Specialist Router" as SpecRouter
-    rectangle "Specialist Responders" as Specialists
+    component "Specialist Router" as SpecRouter
+    component "Specialist Responders" as Specialists
     database "Specialist Data Stores\n(AWS Managed DB)" as SpecDB
-    rectangle "Specialist Blob Storage\n(Amazon S3)" as SpecBlob
+    component "Specialist Blob Storage\n(Amazon S3)" as SpecBlob
   }
 
   package "Retention & Archive" {
-    rectangle "Retention & Archive" as Retention
+    component "Retention & Archive" as Retention
     database "archive_store\n(AWS Managed DB)" as ArchiveDB
   }
 
-  rectangle "Observability Stack\n(Amazon CloudWatch/X-Ray)" as Obs
-  rectangle "Service Discovery + Config\n(AWS Cloud Map/SSM)" as SDC
-  rectangle "Secrets/KMS\n(AWS KMS)" as KMS
+  component "Observability Stack\n(Amazon CloudWatch/X-Ray)" as Obs
+  component "Service Discovery + Config\n(AWS Cloud Map/SSM)" as SDC
+  component "Secrets/KMS\n(AWS KMS)" as KMS
 }
 
 Client --> APIGW : HTTPS (REST)
@@ -76,7 +76,7 @@ Specialists --> MsgStore : HTTPS (REST)
 Specialists --> SpecDB : read/write
 Specialists --> SpecBlob : read/write
 
-APIGW --> Specialists : HTTPS (REST) actions
+APIGW --> Specialists : HTTPS (REST) domain endpoints
 
 Retention --> ChatRegDB : write (archive/soft delete)
 Retention --> MsgDB : write (retention)
@@ -99,6 +99,11 @@ KMS ..> SpecBlob : dependency
 note bottom of MsgStore
 DBs are private to their owning services.
 Other services use APIs or events.
+end note
+
+note bottom of Specialists
+Visible messages may include meta.domain_entity_id
+to fetch specialist-specific details.
 end note
 
 @enduml

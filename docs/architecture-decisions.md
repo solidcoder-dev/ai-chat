@@ -27,3 +27,4 @@ Best Practices (non-redundant)
 - Store only user-visible content in Message Store (no internal prompts/tools).
 - Paginate history reads to enforce size limits and performance.
 - Domain actions are executed via Specialist endpoints; Message Store stores only user-visible summaries.
+- Visible messages may include meta.domain_entity_id to fetch specialist-specific detail views.

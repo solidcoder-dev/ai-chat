@@ -64,7 +64,9 @@ opt Domain action (edit/confirm)
   Client -> APIGW : Action request (HTTPS)
   APIGW -> Specialist : Execute action
   Specialist -> SpecDB : Update domain state
-  Specialist -> MsgStore : Write visible summary
+  Specialist --> APIGW : Action result (200 OK)\n{domain_entity_id: ...}
+  APIGW --> Client : Action result
+  Specialist -> MsgStore : Write visible summary\nmeta.domain_entity_id=...
   MsgStore -> Outbox : Append event
   Outbox -> EventBus : Publish
   EventBus -> RTGW : Fan-out
