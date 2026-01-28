@@ -1,0 +1,19 @@
+Technical Requirements
+
+- The architecture MUST be microservices-based (service per bounded context with its own data store).
+- Real-time chat delivery MUST be supported (e.g., WebSocket/SSE via a Realtime Gateway).
+- Centralized authentication and authorization MUST be enforced (Identity & Access Control).
+- Observability MUST include logs, metrics, and traces without exposing internal content.
+- The system MUST be scalable and fault-tolerant (timeouts, retries, circuit breakers).
+- Retention and archive policies MUST be configurable and enforceable.
+- Model/API versioning MUST be supported.
+- Write operations MUST be idempotent (idempotency keys and/or inbox/outbox).
+- Message and file size limits MUST be enforced.
+- Data in transit and at rest MUST be encrypted (TLS + KMS-managed keys).
+- Safe migrations and rollback MUST be supported.
+- A service discovery and centralized configuration mechanism SHOULD be provided.
+- Event publishing SHOULD be supported for projections/integrations (Event Bus + Outbox).
+- A read model for chat history SHOULD be available for optimized queries (History Query).
+- Conversation caching SHOULD be supported for hot chats (Conversation Cache).
+- Backups and disaster recovery SHOULD be defined and tested.
+- A schema/contract registry MAY be used for event/API compatibility.

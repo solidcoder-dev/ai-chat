@@ -1,6 +1,7 @@
 Problem Description
 
 - Existe un sistema con chats especializados por tipo (maitre, bi, brain, consultas, etc.).
+- El usuario puede crear varias instancias de un mismo tipo y mantener múltiples conversaciones de ese tipo en paralelo.
 - Se requiere persistir el historial completo de cada conversación.
 - El historial debe incluir solo lo que el usuario ve, sin detalles internos del sistema.
 - La relación de propiedad es: empresa -> oficina -> usuario -> chat.
@@ -15,17 +16,3 @@ Problem Description
 - Idioma: se debe registrar el idioma principal del chat.
 - El versionado es deseable, aunque no requerido en la primera version.
 - Estados del chat: activo, archivado, borrado.
-
-Technical Requirements
-
-- Arquitectura basada en microservicios.
-- Comunicacion en tiempo real para el chat.
-- Seguridad: autenticacion y autorizacion centralizada.
-- Observabilidad basica (logs, metricas, trazas) sin exponer contenido interno.
-- Escalabilidad y tolerancia a fallos.
-- Politica de retencion y archivado configurable.
-- Versionado del modelo/API.
-- Idempotencia en operaciones de escritura.
-- Limites de tamano por mensaje y archivo.
-- Seguridad de datos en transito y en reposo.
-- Mecanismo de migraciones y rollback seguro.

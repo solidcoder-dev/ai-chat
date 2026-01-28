@@ -1,0 +1,46 @@
+Workflows and Components
+
+Components (responsibility + description)
+- API Gateway: single entry point; routes calls, applies rate limiting, delegates auth.
+- Identity & Access Control: authentication/authorization; issues/validates tokens.
+- Chat Registry: chat metadata (title, language, state, type, ownership).
+- Message Store: append-only persistence, stable sequencing, idempotency.
+- Conversation Cache: cache of user-visible history for frequent reads.
+- Realtime Gateway: real-time delivery (WebSocket/SSE).
+- Specialist Responder: generates responses based on chat type.
+- Specialist Router: routes to the correct responder by chat type.
+- History Query: optimized reads of user-visible history (projection).
+- File Catalog: file metadata (type, size, owner, references).
+- Blob Storage: file binaries.
+- Retention & Archive: retention policies, archiving, soft delete.
+- Event Bus: distributes events for projections and integrations.
+- Observability Stack: logs, metrics, traces without sensitive content.
+- Service Discovery + Config: service registry and centralized config.
+- Secrets/KMS: key management and encryption.
+
+MVP Workflow (simple and functional)
+1) Client -> API Gateway -> Identity & Access Control (identity_db).
+2) API Gateway -> Chat Registry (chat_registry_db) to validate ownership/state/type.
+3) Message Store writes message (message_store_db).
+4) Realtime Gateway publishes the message to the client.
+5) Specialist Responder reads history:
+   - Conversation Cache (hit) or Message Store (miss) and updates cache.
+6) Specialist Responder generates response -> Message Store (message_store_db).
+7) Realtime Gateway publishes the response.
+8) Files: File Catalog (file_catalog_db) + Blob Storage.
+
+Full Workflow (microservices + best practices)
+1) Client -> API Gateway -> Identity & Access Control (identity_db).
+2) API Gateway -> Chat Registry (chat_registry_db) for ownership/state/type.
+3) Message Store writes (message_store_db) + Outbox -> Event Bus.
+4) Realtime Gateway consumes event and publishes to client.
+5) Specialist Router consumes event and routes to Specialist Responder.
+6) Specialist Responder reads history:
+   - Conversation Cache (hit) or History Query (miss).
+   - History Query reads history_read_db (projection of message_store_db) and updates cache.
+7) Specialist Responder generates response -> Message Store (message_store_db) + Outbox -> Event Bus.
+8) Realtime Gateway publishes the response.
+9) Files: File Catalog (file_catalog_db) + Blob Storage.
+10) Retention & Archive applies policies on chat_registry_db and message_store_db.
+11) Observability Stack receives logs/metrics/traces.
+12) Service Discovery + Config + Secrets/KMS support deployment.
