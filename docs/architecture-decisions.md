@@ -16,3 +16,13 @@ Architecture Decisions
 - Security: TLS in transit, KMS at rest.
 - Retention & archive: applied to Message Store and Specialist data.
 - Load assumption: ~300 messages per chat; supports simple MVP with clear scaling path.
+
+Message Store vs History Read Model
+- message_store_db is the append-only source of truth for user-visible conversation data.
+- history_read_db is a read-optimized projection that can differ in schema to serve fast history queries.
+
+Best Practices (non-redundant)
+- Validate access via Chat Registry before any history read.
+- Use request_id for idempotent writes at Message Store.
+- Store only user-visible content in Message Store (no internal prompts/tools).
+- Paginate history reads to enforce size limits and performance.

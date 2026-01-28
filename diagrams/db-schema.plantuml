@@ -1,0 +1,63 @@
+@startuml
+title DB Schema (Message Store)
+left to right direction
+hide stereotypes
+
+entity "chat" as chat {
+  *id : varchar(128)
+  chat_type : varchar
+  title : varchar
+  language : varchar
+  status : varchar
+  created_at : timestamp
+  deleted_at : timestamp
+}
+
+entity "message_event" as message_event {
+  *id : bigserial
+  message_uid : varchar
+  chat_id : varchar(128)
+  seq : int
+  role : varchar
+  created_at : timestamp
+  request_id : varchar
+  response_to : bigint
+  meta : jsonb
+}
+
+entity "message_item" as message_item {
+  *id : bigserial
+  message_id : bigint
+  position : int
+  item_type : varchar
+  renderable : boolean
+}
+
+entity "message_item_text" as message_item_text {
+  *item_id : bigint
+  text : text
+}
+
+entity "message_item_file" as message_item_file {
+  *item_id : bigint
+  source : varchar
+  media_type : varchar
+  uri : text
+  filename : varchar
+  bytes : bigint
+}
+
+chat "1" ||--o{ "N" message_event : chat_id
+message_event "1" ||--o{ "N" message_item : message_id
+message_item "1" ||--o| "1" message_item_text : item_id
+message_item "1" ||--o| "1" message_item_file : item_id
+
+' self FK (response_to -> message_event.id), sin duplicar entidad
+message_event "1" ||--o| "0..1" message_event : response_to
+
+note right of chat
+  chat_id is owned by Chat Registry.
+  No cross-service FK constraints.
+end note
+
+@enduml
