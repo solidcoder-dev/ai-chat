@@ -1,0 +1,110 @@
+@startuml
+title DB Schema (Specialist Data Store)
+left to right direction
+hide stereotypes
+
+entity "specialist" as specialist {
+  *id : varchar(128)
+  name : varchar
+  status : varchar
+  created_at : timestamp
+}
+
+entity "agent" as agent {
+  *id : varchar(128)
+  specialist_id : varchar(128)
+  model_name : varchar
+  version : varchar
+  created_at : timestamp
+}
+
+entity "system_prompt" as system_prompt {
+  *id : varchar(128)
+  agent_id : varchar(128)
+  prompt_text : text
+  prompt_hash : varchar
+  created_at : timestamp
+}
+
+entity "session" as session {
+  *id : varchar(128)
+  chat_id : varchar(128)
+  agent_id : varchar(128)
+  system_prompt_id : varchar(128)
+  status : varchar
+  created_at : timestamp
+}
+
+entity "message" as message {
+  *id : bigserial
+  session_id : varchar(128)
+  role : varchar
+  seq : int
+  created_at : timestamp
+  agent_id : varchar(128)
+  agent_version : varchar
+  system_prompt_id : varchar(128)
+  system_prompt_version : varchar
+  content : jsonb
+}
+
+entity "tool_call" as tool_call {
+  *id : bigserial
+  session_id : varchar(128)
+  message_id : bigint
+  call_id : varchar
+  name : varchar
+  args : jsonb
+  created_at : timestamp
+}
+
+entity "tool_result" as tool_result {
+  *id : bigserial
+  session_id : varchar(128)
+  message_id : bigint
+  call_id : varchar
+  status : varchar
+  result : jsonb
+  error : jsonb
+  created_at : timestamp
+}
+
+entity "document" as document {
+  *id : varchar(128)
+  session_id : varchar(128)
+  title : varchar
+  media_type : varchar
+  bytes : bigint
+  blob_uri : text
+  created_at : timestamp
+}
+
+entity "document_ref" as document_ref {
+  *id : bigserial
+  session_id : varchar(128)
+  message_id : bigint
+  document_id : varchar(128)
+  label : varchar
+}
+
+specialist "1" ||--o{ "N" agent : specialist_id
+agent "1" ||--o{ "N" system_prompt : agent_id
+agent "1" ||--o{ "N" session : agent_id
+system_prompt "1" ||--o{ "N" session : system_prompt_id
+
+session "1" ||--o{ "N" message : session_id
+session "1" ||--o{ "N" tool_call : session_id
+session "1" ||--o{ "N" tool_result : session_id
+message "1" ||--o{ "N" tool_call : message_id
+message "1" ||--o{ "N" tool_result : message_id
+
+session "1" ||--o{ "N" document : session_id
+document "1" ||--o{ "N" document_ref : document_id
+message "1" ||--o{ "N" document_ref : message_id
+
+note right of session
+  chat_id references Chat Registry.
+  No cross-service FK constraints.
+end note
+
+@enduml
