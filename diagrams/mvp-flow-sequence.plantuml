@@ -40,4 +40,13 @@ opt File upload
   Specialist -> SpecBlob : Store blob
 end
 
+opt Domain action (edit/confirm)
+  Client -> APIGW : Action request (HTTPS)
+  APIGW -> Specialist : Execute action
+  Specialist -> SpecDB : Update domain state
+  Specialist -> MsgStore : Write visible summary
+  MsgStore -> RTGW : Publish event
+  RTGW --> Client : SSE update
+end
+
 @enduml

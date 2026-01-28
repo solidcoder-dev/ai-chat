@@ -30,6 +30,7 @@ Specialists --> SpecDB : read/write data
 Specialists --> SpecBlob : read/write blobs
 MsgStore --> RTGW : publish events
 RTGW --> Client : push updates
+APIGW --> Specialists : domain actions
 
 note bottom of Specialists
 Multiple instances per type

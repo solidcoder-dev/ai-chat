@@ -26,3 +26,4 @@ Best Practices (non-redundant)
 - Use request_id for idempotent writes at Message Store.
 - Store only user-visible content in Message Store (no internal prompts/tools).
 - Paginate history reads to enforce size limits and performance.
+- Domain actions are executed via Specialist endpoints; Message Store stores only user-visible summaries.

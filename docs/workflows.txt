@@ -23,11 +23,11 @@ MVP Workflow (simple and functional)
 2) API Gateway -> Chat Registry (chat_registry_db) to validate ownership/state/type.
 3) Message Store writes message (message_store_db).
 4) Realtime Gateway publishes the message to the client.
-5) Specialist Responder reads history:
-   - Conversation Cache (hit) or Message Store (miss) and updates cache.
+5) Specialist Responder reads history via Message Store and updates cache.
 6) Specialist Responder generates response -> Message Store (message_store_db).
 7) Realtime Gateway publishes the response.
-8) Files: Specialist Data Stores + Specialist Blob Storage.
+8) Domain actions (edit/confirm) go to Specialist endpoints; Specialist updates its DB and writes a visible summary to Message Store.
+9) Files: Specialist Data Stores + Specialist Blob Storage.
 
 Full Workflow (microservices + best practices)
 1) Client -> API Gateway -> Identity & Access Control (identity_db).
@@ -40,7 +40,8 @@ Full Workflow (microservices + best practices)
    - History Query reads history_read_db (projection of message_store_db) and updates cache.
 7) Specialist Responder generates response -> Message Store (message_store_db) + Outbox -> Event Bus.
 8) Realtime Gateway publishes the response.
-9) Files: Specialist Data Stores + Specialist Blob Storage.
-10) Retention & Archive applies policies on chat_registry_db and message_store_db.
-11) Observability Stack receives logs/metrics/traces.
-12) Service Discovery + Config + Secrets/KMS support deployment.
+9) Domain actions (edit/confirm) go to Specialist endpoints; Specialist updates its DB and writes a visible summary to Message Store.
+10) Files: Specialist Data Stores + Specialist Blob Storage.
+11) Retention & Archive applies policies on chat_registry_db and message_store_db.
+12) Observability Stack receives logs/metrics/traces.
+13) Service Discovery + Config + Secrets/KMS support deployment.

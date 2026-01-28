@@ -69,22 +69,14 @@ entity "tool_result" as tool_result {
   created_at : timestamp
 }
 
-entity "document" as document {
-  *id : varchar(128)
-  session_id : varchar(128)
-  title : varchar
-  media_type : varchar
-  bytes : bigint
-  blob_uri : text
-  created_at : timestamp
-}
-
 entity "document_ref" as document_ref {
   *id : bigserial
   session_id : varchar(128)
   message_id : bigint
-  document_id : varchar(128)
   label : varchar
+  blob_uri : text
+  media_type : varchar
+  bytes : bigint
 }
 
 specialist "1" ||--o{ "N" agent : specialist_id
@@ -98,8 +90,7 @@ session "1" ||--o{ "N" tool_result : session_id
 message "1" ||--o{ "N" tool_call : message_id
 message "1" ||--o{ "N" tool_result : message_id
 
-session "1" ||--o{ "N" document : session_id
-document "1" ||--o{ "N" document_ref : document_id
+session "1" ||--o{ "N" document_ref : session_id
 message "1" ||--o{ "N" document_ref : message_id
 
 note right of session

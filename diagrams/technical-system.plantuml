@@ -76,7 +76,7 @@ Specialists --> MsgStore : HTTPS (REST)
 Specialists --> SpecDB : read/write
 Specialists --> SpecBlob : read/write
 
-APIGW --> Specialists : HTTPS (REST)
+APIGW --> Specialists : HTTPS (REST) actions
 
 Retention --> ChatRegDB : write (archive/soft delete)
 Retention --> MsgDB : write (retention)

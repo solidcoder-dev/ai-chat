@@ -1,0 +1,83 @@
+@startuml
+hide footbox
+
+author "Itinerary Full Flow"
+actor Client
+boundary "API Gateway\n(AWS API Gateway)" as APIGW
+participant "Identity & Access Control" as IAM
+participant "Keycloak\n(External Auth)" as Keycloak
+participant "Chat Registry" as ChatReg
+participant "Message Store" as MsgStore
+queue "Outbox" as Outbox
+queue "Event Bus\n(Amazon EventBridge)" as EventBus
+participant "Realtime Gateway\n(AWS API Gateway SSE)" as RTGW
+participant "Specialist Router" as Router
+participant "Itinerary Specialist" as Specialist
+participant "History Query" as History
+database "Conversation Cache\n(AWS ElastiCache)" as Cache
+participant "Tool Adapter" as Tools
+participant "Specialist Data Store" as SpecDB
+database "Specialist Blob Storage\n(Amazon S3)" as SpecBlob
+
+== User asks for an itinerary ==
+Client -> APIGW : Send message (HTTPS)
+APIGW -> IAM : Validate token
+IAM -> Keycloak : OIDC/OAuth2
+Keycloak --> IAM : OK
+IAM --> APIGW : OK
+APIGW -> ChatReg : Validate chat
+ChatReg --> APIGW : OK
+APIGW -> MsgStore : Write user message
+MsgStore -> Outbox : Append event
+Outbox -> EventBus : Publish
+EventBus -> RTGW : Fan-out
+RTGW --> Client : SSE update
+
+EventBus -> Router : Route by chat type
+Router -> Specialist : Invoke (gRPC/HTTP)
+
+Specialist -> History : Read history
+History -> Cache : Read cache
+alt Cache miss
+  History -> Cache : Warm cache
+end
+
+Specialist -> Tools : tool_call (flight_search, hotel_search, poi_search)
+Tools --> Specialist : tool_result
+Specialist -> SpecDB : Store tool_call/tool_result
+
+Specialist -> SpecDB : Create itinerary (itinerary_id=it_123)
+Specialist -> MsgStore : Write assistant summary (meta.itinerary_id=it_123)
+MsgStore -> Outbox : Append event
+Outbox -> EventBus : Publish
+EventBus -> RTGW : Fan-out
+RTGW --> Client : SSE update
+
+== Client fetches itinerary details ==
+Client -> APIGW : GET /itinerary/it_123
+APIGW -> IAM : Validate token
+IAM -> Keycloak : OIDC/OAuth2
+Keycloak --> IAM : OK
+IAM --> APIGW : OK
+APIGW -> Specialist : Fetch itinerary
+Specialist -> SpecDB : Read itinerary details
+Specialist --> APIGW : Itinerary details
+APIGW --> Client : Itinerary details
+
+== Client edits itinerary ==
+Client -> APIGW : POST /itinerary/it_123/edit
+APIGW -> IAM : Validate token
+IAM -> Keycloak : OIDC/OAuth2
+Keycloak --> IAM : OK
+IAM --> APIGW : OK
+APIGW -> ChatReg : Validate chat
+ChatReg --> APIGW : OK
+APIGW -> Specialist : Execute edit action
+Specialist -> SpecDB : Update itinerary
+Specialist -> MsgStore : Write visible summary
+MsgStore -> Outbox : Append event
+Outbox -> EventBus : Publish
+EventBus -> RTGW : Fan-out
+RTGW --> Client : SSE update
+
+@enduml
