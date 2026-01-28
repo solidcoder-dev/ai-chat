@@ -4,46 +4,63 @@ skinparam componentStyle rectangle
 actor "Client (Browser)" as Client
 
 rectangle "External Systems" {
-  rectangle "Identity Provider" as IdP
+  rectangle "Keycloak\n(External Auth)" as Keycloak
 }
 
 rectangle "Tripilots" {
-  rectangle "API Gateway" as APIGW
-  rectangle "Realtime Gateway" as RTGW
-  rectangle "Identity & Access Control" as IAM
-  rectangle "Chat Registry" as ChatReg
-  rectangle "Message Store" as MsgStore
-  rectangle "History Query" as HistoryQuery
-  rectangle "Conversation Cache" as ConvCache
-  rectangle "Specialist Router" as SpecRouter
-  rectangle "Specialist Responders" as Specialists
-  rectangle "File Catalog" as FileCat
-  rectangle "Retention & Archive" as Retention
-  rectangle "Event Bus" as EventBus
-  rectangle "Outbox" as Outbox
-  rectangle "Observability Stack" as Obs
-  rectangle "Service Discovery + Config" as SDC
-  rectangle "Secrets/KMS" as KMS
+  rectangle "API Gateway\n(AWS API Gateway)" as APIGW
 
-  database "identity_db" as IdentityDB
-  database "chat_registry_db" as ChatRegDB
-  database "message_store_db" as MsgDB
-  database "history_read_db" as HistoryDB
-  database "file_catalog_db" as FileDB
-  database "archive_store" as ArchiveDB
-  rectangle "Blob Storage" as BlobStore
+  package "Identity & Access Control (MVP)" {
+    rectangle "Identity & Access Control" as IAM
+    database "identity_db\n(AWS Managed DB)" as IdentityDB
+  }
+
+  package "Chat Registry (MVP)" {
+    rectangle "Chat Registry" as ChatReg
+    database "chat_registry_db\n(AWS Managed DB)" as ChatRegDB
+  }
+
+  package "Message Store (MVP)" {
+    rectangle "Message Store" as MsgStore
+    rectangle "Outbox" as Outbox
+    rectangle "Event Bus\n(Amazon EventBridge)" as EventBus
+    rectangle "History Query" as HistoryQuery
+    rectangle "Conversation Cache\n(AWS ElastiCache)" as ConvCache
+    database "message_store_db\n(AWS Managed DB)" as MsgDB
+    database "history_read_db\n(AWS Managed DB)" as HistoryDB
+  }
+
+  package "Realtime Gateway (MVP)" {
+    rectangle "Realtime Gateway\n(AWS API Gateway SSE)" as RTGW
+  }
+
+  package "Specialist Responders (MVP)" {
+    rectangle "Specialist Router" as SpecRouter
+    rectangle "Specialist Responders" as Specialists
+    database "Specialist Data Stores\n(AWS Managed DB)" as SpecDB
+    rectangle "Specialist Blob Storage\n(Amazon S3)" as SpecBlob
+  }
+
+  package "Retention & Archive" {
+    rectangle "Retention & Archive" as Retention
+    database "archive_store\n(AWS Managed DB)" as ArchiveDB
+  }
+
+  rectangle "Observability Stack\n(Amazon CloudWatch/X-Ray)" as Obs
+  rectangle "Service Discovery + Config\n(AWS Cloud Map/SSM)" as SDC
+  rectangle "Secrets/KMS\n(AWS KMS)" as KMS
 }
 
 Client --> APIGW : HTTPS (REST)
 APIGW --> IAM : HTTPS (REST)
-IAM --> IdP : OIDC/OAuth2
-IAM --> IdentityDB : users/roles
+IAM --> Keycloak : OIDC/OAuth2
+IAM --> IdentityDB : read/write users/roles
 
 APIGW --> ChatReg : HTTPS (REST)
-ChatReg --> ChatRegDB
+ChatReg --> ChatRegDB : read/write
 
-APIGW --> MsgStore : HTTPS (REST)
-MsgStore --> MsgDB
+APIGW --> MsgStore : HTTPS (REST) read/write
+MsgStore --> MsgDB : read/write
 MsgStore --> Outbox : append event
 Outbox --> EventBus : publish
 
@@ -52,32 +69,36 @@ RTGW --> Client : SSE
 
 EventBus --> SpecRouter : event stream
 SpecRouter --> Specialists : gRPC/HTTP
-Specialists --> ConvCache : cache read
 Specialists --> HistoryQuery : HTTPS (REST)
-HistoryQuery --> HistoryDB
-HistoryQuery --> ConvCache : warm cache
+HistoryQuery --> HistoryDB : read
+HistoryQuery --> ConvCache : read/write
 Specialists --> MsgStore : HTTPS (REST)
+Specialists --> SpecDB : read/write
+Specialists --> SpecBlob : read/write
 
-APIGW --> FileCat : HTTPS (REST)
-FileCat --> FileDB
-FileCat --> BlobStore : store/retrieve
+APIGW --> Specialists : HTTPS (REST)
 
-Retention --> ChatRegDB : archive/soft delete
-Retention --> MsgDB : retention
-Retention --> ArchiveDB : long-term archive
+Retention --> ChatRegDB : write (archive/soft delete)
+Retention --> MsgDB : write (retention)
+Retention --> ArchiveDB : write (long-term archive)
 
-Obs ..> APIGW
-Obs ..> MsgStore
-Obs ..> EventBus
-Obs ..> Specialists
+Obs ..> APIGW : dependency
+Obs ..> MsgStore : dependency
+Obs ..> EventBus : dependency
+Obs ..> Specialists : dependency
 
-SDC ..> APIGW
-SDC ..> MsgStore
-SDC ..> Specialists
+SDC ..> APIGW : dependency
+SDC ..> MsgStore : dependency
+SDC ..> Specialists : dependency
 
-KMS ..> IdentityDB
-KMS ..> MsgDB
-KMS ..> FileDB
-KMS ..> BlobStore
+KMS ..> IdentityDB : dependency
+KMS ..> MsgDB : dependency
+KMS ..> SpecDB : dependency
+KMS ..> SpecBlob : dependency
+
+note bottom of MsgStore
+DBs are private to their owning services.
+Other services use APIs or events.
+end note
 
 @enduml

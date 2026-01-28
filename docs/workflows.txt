@@ -10,8 +10,8 @@ Components (responsibility + description)
 - Specialist Responder: generates responses based on chat type.
 - Specialist Router: routes to the correct responder by chat type.
 - History Query: optimized reads of user-visible history (projection).
-- File Catalog: file metadata (type, size, owner, references).
-- Blob Storage: file binaries.
+- Specialist Data Stores: domain data per specialist (tables, metadata).
+- Specialist Blob Storage: binaries owned by each specialist.
 - Retention & Archive: retention policies, archiving, soft delete.
 - Event Bus: distributes events for projections and integrations.
 - Observability Stack: logs, metrics, traces without sensitive content.
@@ -27,7 +27,7 @@ MVP Workflow (simple and functional)
    - Conversation Cache (hit) or Message Store (miss) and updates cache.
 6) Specialist Responder generates response -> Message Store (message_store_db).
 7) Realtime Gateway publishes the response.
-8) Files: File Catalog (file_catalog_db) + Blob Storage.
+8) Files: Specialist Data Stores + Specialist Blob Storage.
 
 Full Workflow (microservices + best practices)
 1) Client -> API Gateway -> Identity & Access Control (identity_db).
@@ -40,7 +40,7 @@ Full Workflow (microservices + best practices)
    - History Query reads history_read_db (projection of message_store_db) and updates cache.
 7) Specialist Responder generates response -> Message Store (message_store_db) + Outbox -> Event Bus.
 8) Realtime Gateway publishes the response.
-9) Files: File Catalog (file_catalog_db) + Blob Storage.
+9) Files: Specialist Data Stores + Specialist Blob Storage.
 10) Retention & Archive applies policies on chat_registry_db and message_store_db.
 11) Observability Stack receives logs/metrics/traces.
 12) Service Discovery + Config + Secrets/KMS support deployment.

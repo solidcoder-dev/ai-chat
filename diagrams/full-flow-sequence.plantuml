@@ -2,30 +2,34 @@
 hide footbox
 
 actor Client
-boundary "API Gateway" as APIGW
+boundary "API Gateway\n(AWS API Gateway)" as APIGW
 participant "Identity & Access Control" as IAM
 participant "Chat Registry" as ChatReg
 participant "Message Store" as MsgStore
 queue "Outbox" as Outbox
-queue "Event Bus" as EventBus
-participant "Realtime Gateway" as RTGW
+queue "Event Bus\n(Amazon EventBridge)" as EventBus
+participant "Realtime Gateway\n(AWS API Gateway SSE)" as RTGW
 participant "Specialist Router" as Router
 participant "Specialist Responder" as Specialist
-database "Conversation Cache" as Cache
+database "Conversation Cache\n(AWS ElastiCache)" as Cache
 participant "History Query" as History
-participant "File Catalog" as FileCat
-database "Blob Storage" as Blob
+participant "Specialist Data Store" as SpecDB
+database "Specialist Blob Storage\n(Amazon S3)" as SpecBlob
+
+participant "Keycloak\n(External Auth)" as Keycloak
 
 Client -> APIGW : Get conversation (HTTPS)
-APIGW -> Cache : Read history
+APIGW -> History : Read history
+History -> Cache : Read cache
 alt Cache miss
-  APIGW -> History : Read history
   History -> Cache : Warm cache
 end
 APIGW --> Client : Full conversation
 
 Client -> APIGW : Send message (HTTPS)
 APIGW -> IAM : Validate token
+IAM -> Keycloak : OIDC/OAuth2
+Keycloak --> IAM : OK
 IAM --> APIGW : OK
 APIGW -> ChatReg : Validate chat
 ChatReg --> APIGW : OK
@@ -38,9 +42,9 @@ RTGW --> Client : SSE update
 EventBus -> Router : Route by chat type
 Router -> Specialist : Invoke (gRPC/HTTP)
 
-Specialist -> Cache : Read history
+Specialist -> History : Read history
+History -> Cache : Read cache
 alt Cache miss
-  Specialist -> History : Read history
   History -> Cache : Warm cache
 end
 Specialist -> MsgStore : Write response
@@ -51,8 +55,9 @@ RTGW --> Client : SSE update
 
 opt File upload
   Client -> APIGW : Upload file (HTTPS)
-  APIGW -> FileCat : Store metadata
-  FileCat -> Blob : Store blob
+  APIGW -> Specialist : Store file metadata
+  Specialist -> SpecDB : Write metadata
+  Specialist -> SpecBlob : Store blob
 end
 
 @enduml
