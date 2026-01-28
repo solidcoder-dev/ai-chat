@@ -1,0 +1,42 @@
+@startuml
+hide footbox
+
+actor Client
+participant "API Gateway" as APIGW
+participant "Identity & Access Control" as IAM
+participant "Chat Registry" as ChatReg
+participant "Message Store" as MsgStore
+participant "Conversation Cache" as Cache
+participant "Specialist Responder" as Specialist
+participant "Realtime Gateway" as RTGW
+participant "File Catalog" as FileCat
+participant "Blob Storage" as Blob
+
+Client -> APIGW : Send message (HTTPS)
+APIGW -> IAM : Validate token
+IAM --> APIGW : OK
+APIGW -> ChatReg : Validate chat
+ChatReg --> APIGW : OK
+APIGW -> MsgStore : Write message
+MsgStore -> Cache : Update cache
+MsgStore --> APIGW : Ack
+APIGW -> RTGW : Publish event
+RTGW --> Client : SSE update
+
+Specialist -> Cache : Read history
+alt Cache miss
+  Specialist -> MsgStore : Read history
+  MsgStore -> Cache : Warm cache
+end
+Specialist -> MsgStore : Write response
+MsgStore -> Cache : Update cache
+MsgStore -> RTGW : Publish event
+RTGW --> Client : SSE update
+
+opt File upload
+  Client -> APIGW : Upload file (HTTPS)
+  APIGW -> FileCat : Store metadata
+  FileCat -> Blob : Store blob
+end
+
+@enduml

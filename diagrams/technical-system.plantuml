@@ -1,0 +1,83 @@
+@startuml
+skinparam componentStyle rectangle
+
+actor "Client (Browser)" as Client
+
+rectangle "External Systems" {
+  rectangle "Identity Provider" as IdP
+}
+
+rectangle "Tripilots" {
+  rectangle "API Gateway" as APIGW
+  rectangle "Realtime Gateway" as RTGW
+  rectangle "Identity & Access Control" as IAM
+  rectangle "Chat Registry" as ChatReg
+  rectangle "Message Store" as MsgStore
+  rectangle "History Query" as HistoryQuery
+  rectangle "Conversation Cache" as ConvCache
+  rectangle "Specialist Router" as SpecRouter
+  rectangle "Specialist Responders" as Specialists
+  rectangle "File Catalog" as FileCat
+  rectangle "Retention & Archive" as Retention
+  rectangle "Event Bus" as EventBus
+  rectangle "Outbox" as Outbox
+  rectangle "Observability Stack" as Obs
+  rectangle "Service Discovery + Config" as SDC
+  rectangle "Secrets/KMS" as KMS
+
+  database "identity_db" as IdentityDB
+  database "chat_registry_db" as ChatRegDB
+  database "message_store_db" as MsgDB
+  database "history_read_db" as HistoryDB
+  database "file_catalog_db" as FileDB
+  database "archive_store" as ArchiveDB
+  rectangle "Blob Storage" as BlobStore
+}
+
+Client --> APIGW : HTTPS (REST)
+APIGW --> IAM : HTTPS (REST)
+IAM --> IdP : OIDC/OAuth2
+IAM --> IdentityDB : users/roles
+
+APIGW --> ChatReg : HTTPS (REST)
+ChatReg --> ChatRegDB
+
+APIGW --> MsgStore : HTTPS (REST)
+MsgStore --> MsgDB
+MsgStore --> Outbox : append event
+Outbox --> EventBus : publish
+
+EventBus --> RTGW : event stream
+RTGW --> Client : SSE
+
+EventBus --> SpecRouter : event stream
+SpecRouter --> Specialists : gRPC/HTTP
+Specialists --> ConvCache : cache read
+Specialists --> HistoryQuery : HTTPS (REST)
+HistoryQuery --> HistoryDB
+HistoryQuery --> ConvCache : warm cache
+Specialists --> MsgStore : HTTPS (REST)
+
+APIGW --> FileCat : HTTPS (REST)
+FileCat --> FileDB
+FileCat --> BlobStore : store/retrieve
+
+Retention --> ChatRegDB : archive/soft delete
+Retention --> MsgDB : retention
+Retention --> ArchiveDB : long-term archive
+
+Obs ..> APIGW
+Obs ..> MsgStore
+Obs ..> EventBus
+Obs ..> Specialists
+
+SDC ..> APIGW
+SDC ..> MsgStore
+SDC ..> Specialists
+
+KMS ..> IdentityDB
+KMS ..> MsgDB
+KMS ..> FileDB
+KMS ..> BlobStore
+
+@enduml
