@@ -1,0 +1,34 @@
+@startuml
+skinparam componentStyle rectangle
+
+actor "Client (Browser)" as Client
+
+rectangle "Tripilots" {
+  rectangle "API Gateway" as APIGW
+  rectangle "Identity & Access Control" as IAM
+  rectangle "Chat Registry" as ChatReg
+  rectangle "Message Store\n(append-only)" as MsgStore
+  rectangle "Conversation Cache\n(read-through)" as ConvCache
+  rectangle "Realtime Gateway" as RTGW
+  rectangle "Specialist Responders\n(maitre, bi, brain)" as Specialists
+  rectangle "File Catalog" as FileCat
+  rectangle "Blob Storage" as BlobStore
+}
+
+Client --> APIGW : send message\nrequest history
+APIGW --> IAM : validate auth
+APIGW --> ChatReg : validate chat\nownership/state/type
+APIGW --> MsgStore : write/read messages
+MsgStore --> ConvCache : update cache
+Specialists --> ConvCache : read history
+Specialists --> MsgStore : write response
+MsgStore --> RTGW : publish events
+RTGW --> Client : push updates
+APIGW --> FileCat : file metadata
+FileCat --> BlobStore : store/retrieve blobs
+
+note bottom of Specialists
+Multiple instances per type
+end note
+
+@enduml
