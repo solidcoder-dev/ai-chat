@@ -59,7 +59,8 @@ IAM --> IdentityDB : read/write users/roles
 APIGW --> ChatReg : HTTPS (REST)
 ChatReg --> ChatRegDB : read/write
 
-APIGW --> MsgStore : HTTPS (REST) read/write
+APIGW --> MsgStore : HTTPS (REST) write
+APIGW --> HistoryQuery : HTTPS (REST) read
 MsgStore --> MsgDB : read/write
 MsgStore --> Outbox : append event
 Outbox --> EventBus : publish

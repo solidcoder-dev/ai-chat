@@ -62,6 +62,8 @@ end
 
 opt Domain action (edit/confirm)
   Client -> APIGW : Action request (HTTPS)
+  APIGW -> ChatReg : Validate chat
+  ChatReg --> APIGW : OK
   APIGW -> Specialist : Execute action
   Specialist -> SpecDB : Update domain state
   Specialist --> APIGW : Action result (200 OK)\n{domain_entity_id: ...}
