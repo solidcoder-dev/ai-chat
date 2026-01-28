@@ -1,5 +1,18 @@
 Architecture Decisions
 
-- Data ownership: Each Specialist MUST own its domain data (tables and blobs).
-- Conversation source of truth: The user-visible conversation MUST live only in Message Store.
-- Access boundaries: Other services access Specialist data via APIs or events, never direct DB access.
+- Microservices architecture: aligns with scalability, fault-tolerance, and independent deployments.
+- Domain-first boundaries: Chat Registry, Message Store, Specialist Responders, Realtime Gateway, Identity & Access Control.
+- Message Store as source of truth: user-visible conversation is immutable, ordered, and stored only in Message Store.
+- Specialist data ownership: each Specialist owns its domain data (tables and blobs).
+- No cross-service DB access: data sharing via APIs or events only.
+- Append-only + idempotent writes: stable ordering and safe retries.
+- Conversation Cache placement: read-through cache behind History/Message Store for hot chats.
+- History Query read model: optimized full-history reads and future search readiness.
+- Event Bus + Outbox: decoupling and reliable delivery for projections and fan-out.
+- Realtime protocol: SSE to the client (browser-friendly streaming).
+- Service-to-service protocols: HTTP/gRPC for contracts, backpressure, and tooling.
+- Auth: centralized IAM with external Keycloak validation.
+- AWS choices: API Gateway, EventBridge, ElastiCache, S3, CloudWatch/X-Ray, Cloud Map/SSM, KMS.
+- Security: TLS in transit, KMS at rest.
+- Retention & archive: applied to Message Store and Specialist data.
+- Load assumption: ~300 messages per chat; supports simple MVP with clear scaling path.
