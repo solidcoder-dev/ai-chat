@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import Sequence
 
+from ..dtos.mcp_tool_descriptor import McpToolDescriptor
 from ...domain.structured_data import StructuredMap, StructuredValue
 
 
 class McpClient(ABC):
     @abstractmethod
-    def list_tools(self) -> Sequence[StructuredMap]:
+    def list_tools(self) -> Sequence[McpToolDescriptor]:
         raise NotImplementedError
 
     @abstractmethod

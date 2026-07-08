@@ -45,7 +45,7 @@ def test_stdio_mcp_client_speaks_mcp_stdio_protocol(tmp_path):
     workspace_file.write_text("hello from fake mcp", encoding="utf-8")
     client = fake_client()
     try:
-        tool_names = {tool["name"] for tool in client.list_tools()}
+        tool_names = {tool.name for tool in client.list_tools()}
         listing = client.call_tool("list_directory", {"path": str(tmp_path)})
         content = client.call_tool("read_file", {"path": str(workspace_file)})
     finally:
@@ -59,7 +59,7 @@ def test_stdio_mcp_client_speaks_mcp_stdio_protocol(tmp_path):
 def test_stdio_mcp_client_lists_filesystem_tools(tmp_path):
     client = filesystem_client(tmp_path)
     try:
-        tool_names = {tool["name"] for tool in client.list_tools()}
+        tool_names = {tool.name for tool in client.list_tools()}
     finally:
         client.close()
 

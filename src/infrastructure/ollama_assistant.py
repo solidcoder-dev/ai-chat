@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from typing import Callable, Iterable, List, Optional
 
@@ -9,7 +10,8 @@ from ..application.dtos.assistant_request import AssistantRequest
 from ..application.dtos.assistant_response import AssistantResponse
 from ..application.errors import LlmProviderError, ModelNotAvailableError
 from ..application.ports.assistant import Assistant
-from ..domain.message import Message, TextMessage
+from ..domain.message import Message, TextMessage, ToolResultMessage
+from .ollama_tool_mapper import OllamaToolMapper
 
 
 def _resolve_host(host: Optional[str]) -> str:
@@ -36,8 +38,13 @@ class OllamaAssistant(Assistant):
 
     def infer(self, request: AssistantRequest) -> AssistantResponse:
         messages = self._build_messages(request.messages)
+        tool_mapper = OllamaToolMapper(request.tools)
         try:
-            response = self._client.chat(model=self._model, messages=messages)
+            response = self._client.chat(
+                model=self._model,
+                messages=messages,
+                tools=tool_mapper.to_ollama_tools(),
+            )
         except ollama.ResponseError as exc:
             message = str(exc)
             status_code = getattr(exc, "status_code", None)
@@ -46,6 +53,16 @@ class OllamaAssistant(Assistant):
             raise LlmProviderError("ollama", message, status_code) from exc
         except Exception as exc:
             raise LlmProviderError("ollama", str(exc)) from exc
+        tool_call = self._first_tool_call(response)
+        if tool_call is not None:
+            function = tool_call["function"]
+            return AssistantResponse(
+                kind="tool_call",
+                content="",
+                tool_name=tool_mapper.to_internal_name(function["name"]),
+                tool_args=self._tool_arguments(function.get("arguments", {})),
+            )
+
         content = response["message"]["content"]
         return AssistantResponse(
             kind="message",
@@ -70,4 +87,19 @@ class OllamaAssistant(Assistant):
         for item in message.content.items:
             if isinstance(item, TextMessage):
                 parts.append(item.data.text)
+            if isinstance(item, ToolResultMessage):
+                parts.append(json.dumps({"tool_result": item.data.result}))
         return "\n".join(parts)
+
+    @staticmethod
+    def _first_tool_call(response) -> dict | None:
+        tool_calls = response.get("message", {}).get("tool_calls") or []
+        if not tool_calls:
+            return None
+        return tool_calls[0]
+
+    @staticmethod
+    def _tool_arguments(arguments) -> dict:
+        if isinstance(arguments, str):
+            return json.loads(arguments)
+        return arguments

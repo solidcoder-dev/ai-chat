@@ -7,6 +7,7 @@ import threading
 from queue import Empty, Queue
 from typing import Any, Sequence
 
+from ...application.dtos.mcp_tool_descriptor import McpToolDescriptor
 from ...application.ports.mcp_client import McpClient
 from ...domain.structured_data import StructuredMap, StructuredValue
 from .mcp_server_config import McpServerConfig
@@ -44,12 +45,12 @@ class StdioMcpClient(McpClient):
             self.close()
             raise
 
-    def list_tools(self) -> Sequence[StructuredMap]:
+    def list_tools(self) -> Sequence[McpToolDescriptor]:
         result = self._request("tools/list", {})
         tools = result.get("tools")
         if not isinstance(tools, list):
             raise McpProtocolError("MCP tools/list response did not include tools")
-        return tools
+        return [self._to_tool_descriptor(tool) for tool in tools]
 
     def call_tool(self, name: str, arguments: StructuredMap) -> StructuredValue:
         return self._request("tools/call", {"name": name, "arguments": dict(arguments)})
@@ -215,3 +216,13 @@ class StdioMcpClient(McpClient):
             except Empty:
                 break
         return "\n".join(lines[-10:])
+
+    @staticmethod
+    def _to_tool_descriptor(tool: Any) -> McpToolDescriptor:
+        if not isinstance(tool, dict):
+            raise McpProtocolError("MCP tool descriptor was not an object")
+        return McpToolDescriptor(
+            name=str(tool["name"]),
+            description=str(tool.get("description", "")),
+            parameters_schema=tool.get("inputSchema", {}),
+        )
