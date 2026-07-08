@@ -9,9 +9,13 @@ async def _send_once(url: str, chat_id: str, text: str) -> str:
     payload = {"chat_id": chat_id, "text": text}
     async with websockets.connect(url, ping_interval=None, ping_timeout=None) as websocket:
         await websocket.send(json.dumps(payload))
-        response = await websocket.recv()
-    data = json.loads(response)
-    return data.get("content", "")
+        while True:
+            response = await websocket.recv()
+            data = json.loads(response)
+            if data.get("event") == "done":
+                return data.get("content", "")
+            if data.get("event") == "error":
+                return f"Error: {data.get('error', '')}"
 
 
 async def chat_loop(url: str) -> None:

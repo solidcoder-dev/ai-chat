@@ -171,17 +171,22 @@ _TOOL_RESULT = Table(
 )
 
 _SCHEMA_READY = weakref.WeakKeyDictionary()
+_SCHEMA_INITIALIZING = weakref.WeakKeyDictionary()
 _SCHEMA_LOCK = threading.Lock()
 
 
 def _ensure_schema(engine: Engine) -> None:
-    if _SCHEMA_READY.get(engine):
+    if _SCHEMA_READY.get(engine) or _SCHEMA_INITIALIZING.get(engine):
         return
     with _SCHEMA_LOCK:
-        if _SCHEMA_READY.get(engine):
+        if _SCHEMA_READY.get(engine) or _SCHEMA_INITIALIZING.get(engine):
             return
-        _METADATA.create_all(engine)
-        _SCHEMA_READY[engine] = True
+        _SCHEMA_INITIALIZING[engine] = True
+        try:
+            _METADATA.create_all(engine)
+            _SCHEMA_READY[engine] = True
+        finally:
+            _SCHEMA_INITIALIZING.pop(engine, None)
 
 
 @event.listens_for(Engine, "engine_connect")

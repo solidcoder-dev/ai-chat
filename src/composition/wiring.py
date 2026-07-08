@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 from ..application.ports.tool_access_policy import ToolAccessPolicy
 from ..application.ports.tool_catalog import ToolCatalog
@@ -40,6 +40,7 @@ def build_chat_engine(
     )
 
     chat_repo: ChatRepo = PostgresChatRepo(engine)
+    _seed_default_users(engine)
     system_prompt_repo = PostgresSystemPromptRepo(engine)
     data_catalog = PostgresDataCatalog(engine)
     query_executor = SqlAlchemyQueryExecutor(engine)
@@ -83,3 +84,39 @@ def build_chat_engine(
         agent_version=agent_version,
         system_prompt_id=system_prompt_id,
     )
+
+
+def _seed_default_users(engine) -> None:
+    now = datetime.now(timezone.utc)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO company (id, name, status, created_at)
+                VALUES ('company-1', 'Demo', 'active', :created_at)
+                ON CONFLICT (id) DO NOTHING
+                """
+            ),
+            {"created_at": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO office (id, company_id, name, status, created_at)
+                VALUES ('office-1', 'company-1', 'HQ', 'active', :created_at)
+                ON CONFLICT (id) DO NOTHING
+                """
+            ),
+            {"created_at": now},
+        )
+        for user_id in ("ws-user", "cli-user"):
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO app_user (id, company_id, office_id, status, created_at)
+                    VALUES (:user_id, 'company-1', 'office-1', 'active', :created_at)
+                    ON CONFLICT (id) DO NOTHING
+                    """
+                ),
+                {"user_id": user_id, "created_at": now},
+            )
