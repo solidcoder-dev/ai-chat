@@ -136,9 +136,7 @@ class StdioMcpClient(McpClient):
         if self._process.stdin is None:
             raise McpConnectionError("MCP server stdin is unavailable")
         try:
-            body = json.dumps(message).encode("utf-8")
-            header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
-            self._process.stdin.write(header + body)
+            self._process.stdin.write(json.dumps(message).encode("utf-8") + b"\n")
             self._process.stdin.flush()
         except OSError as exc:
             raise McpConnectionError(f"Failed to write to MCP server: {exc}") from exc
@@ -157,42 +155,20 @@ class StdioMcpClient(McpClient):
     def _read_stdout(self) -> None:
         if self._process.stdout is None:
             return
-        while True:
-            message = self._read_framed_message()
+        for line in self._process.stdout:
+            message = self._read_line_message(line)
             if message is None:
-                return
+                continue
             request_id = message.get("id")
             if isinstance(request_id, int) and request_id in self._responses:
                 self._responses[request_id].put(message)
 
-    def _read_framed_message(self) -> dict[str, Any] | None:
-        if self._process.stdout is None:
+    @staticmethod
+    def _read_line_message(line: bytes) -> dict[str, Any] | None:
+        stripped = line.strip()
+        if not stripped:
             return None
-        headers = self._read_headers()
-        if headers is None:
-            return None
-        content_length = headers.get("content-length")
-        if content_length is None:
-            return None
-        body = self._process.stdout.read(int(content_length))
-        if not body:
-            return None
-        return json.loads(body.decode("utf-8"))
-
-    def _read_headers(self) -> dict[str, str] | None:
-        if self._process.stdout is None:
-            return None
-        headers: dict[str, str] = {}
-        while True:
-            line = self._process.stdout.readline()
-            if line == b"":
-                return None
-            stripped = line.strip()
-            if not stripped:
-                return headers
-            name, separator, value = stripped.partition(b":")
-            if separator:
-                headers[name.decode("ascii").lower()] = value.strip().decode("ascii")
+        return json.loads(stripped.decode("utf-8"))
 
     def _read_stderr(self) -> None:
         if self._process.stderr is None:

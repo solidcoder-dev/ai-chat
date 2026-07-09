@@ -18,7 +18,7 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-2) Start Postgres + Ollama (llama3):
+2) Start Postgres + Ollama:
 
 ```bash
 docker compose up -d
@@ -27,10 +27,10 @@ docker compose up -d
 3) Environment variables:
 - Copy `.env.example` to `.env` if you need custom credentials.
 
-4) Pull the Ollama model (first time only):
+4) Pull the Ollama model used by coding mode (first time only):
 
 ```bash
-docker exec -it ai-chat-ollama ollama pull qwen2.5:0.5b
+docker exec -it ai-chat-ollama ollama pull llama3.1:8b
 ```
 
 ## Tests (Docker + testcontainers)
@@ -46,6 +46,14 @@ Start the chat CLI:
 ```bash
 python main.py
 ```
+
+Start the coding CLI with a workspace and a tool-capable model:
+
+```bash
+python3 main.py --mode coding --workspace . --model llama3.1:8b
+```
+
+If `--model` is omitted, coding mode uses `OLLAMA_MODEL`, then falls back to `llama3.1:8b`.
 
 ## Run (WebSocket API)
 Start the FastAPI server:

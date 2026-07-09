@@ -8,3 +8,4 @@ class AssistantResponse:
     content: str
     tool_name: str
     tool_args: StructuredMap
+    tool_call_id: str | None = None

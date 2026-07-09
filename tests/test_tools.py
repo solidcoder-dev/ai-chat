@@ -15,7 +15,7 @@ def _seed(engine) -> None:
         )
 
 
-def test_inspect_schema_tool():
+def test_inspect_schema_tool(docker_available_or_skip):
     with PostgresContainer("postgres:16-alpine") as postgres:
         engine = create_engine(postgres.get_connection_url(), future=True)
         _seed(engine)
@@ -29,7 +29,7 @@ def test_inspect_schema_tool():
         assert "name" in result["columns"]
 
 
-def test_sql_execution_tool():
+def test_sql_execution_tool(docker_available_or_skip):
     with PostgresContainer("postgres:16-alpine") as postgres:
         engine = create_engine(postgres.get_connection_url(), future=True)
         _seed(engine)

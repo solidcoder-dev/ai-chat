@@ -67,7 +67,7 @@ def _make_message(text: str) -> Message:
     )
 
 
-def test_postgres_chat_repo_round_trip():
+def test_postgres_chat_repo_round_trip(docker_available_or_skip):
     with PostgresContainer("postgres:16-alpine") as postgres:
         engine = create_engine(postgres.get_connection_url(), future=True)
         repo = PostgresChatRepo(engine)

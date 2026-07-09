@@ -95,15 +95,18 @@ class OrchestratedChatEngine(ChatEngine):
             if tool_calls > self._max_tool_calls:
                 raise ValueError("Tool call limit exceeded")
 
-            call_id = response.tool_args.get("call_id", f"call-{tool_calls}")
-            call = ToolCall(call_id=call_id, name=response.tool_name, args=response.tool_args)
+            call_id, tool_args = self._extract_tool_call(response, tool_calls)
+            call = ToolCall(call_id=call_id, name=response.tool_name, args=tool_args)
             tool_call_message = self._make_tool_call_message(call)
             chat.add_message(tool_call_message)
             self._emit(on_event, tool_call_message)
 
-            tool = self._tool_registry.get_tool(response.tool_name)
-            tool_result = tool.run(response.tool_args)
-            result = ToolResult(call_id=call_id, status="ok", result=tool_result)
+            result = self._execute_tool_call(
+                tool_name=response.tool_name,
+                tool_args=tool_args,
+                call_id=call_id,
+                tools=tools,
+            )
             tool_result_message = self._make_tool_result_message(result)
             chat.add_message(tool_result_message)
             self._emit(on_event, tool_result_message)
@@ -112,6 +115,47 @@ class OrchestratedChatEngine(ChatEngine):
             response = self._assistant.infer(request)
 
         return response
+
+    def _execute_tool_call(
+        self,
+        *,
+        tool_name: str,
+        tool_args: dict,
+        call_id: str,
+        tools: Sequence,
+    ) -> ToolResult:
+        if not self._is_tool_allowed(tool_name, tools):
+            return ToolResult(
+                call_id=call_id,
+                status="error",
+                error={"message": f"Tool '{tool_name}' is not allowed in this chat."},
+            )
+        try:
+            tool = self._tool_registry.get_tool(tool_name)
+        except KeyError:
+            return ToolResult(
+                call_id=call_id,
+                status="error",
+                error={"message": f"Tool '{tool_name}' is not available."},
+            )
+        tool_result = tool.run(tool_args)
+        return ToolResult(call_id=call_id, status="ok", result=tool_result)
+
+    @staticmethod
+    def _extract_tool_call(response: AssistantResponse, tool_calls: int) -> tuple[str, dict]:
+        tool_args = dict(response.tool_args)
+        call_id = response.tool_call_id
+        if call_id is None:
+            extracted_call_id = tool_args.pop("call_id", None) or tool_args.pop("_call_id", None)
+            if isinstance(extracted_call_id, str) and extracted_call_id:
+                call_id = extracted_call_id
+        if call_id is None:
+            call_id = f"call-{tool_calls}"
+        return call_id, tool_args
+
+    @staticmethod
+    def _is_tool_allowed(tool_name: str, tools: Sequence) -> bool:
+        return any(spec.name == tool_name for spec in tools)
 
     def _allowed_tools(self) -> Sequence:
         all_specs = self._tool_catalog.list_all_tool_specs()

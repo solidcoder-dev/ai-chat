@@ -6,25 +6,15 @@ from pathlib import Path
 
 
 def read_message():
-    headers = {}
-    while True:
-        line = sys.stdin.buffer.readline()
-        if line == b"":
-            return None
-        stripped = line.strip()
-        if not stripped:
-            break
-        name, separator, value = stripped.partition(b":")
-        if separator:
-            headers[name.decode("ascii").lower()] = value.strip().decode("ascii")
-    body = sys.stdin.buffer.read(int(headers["content-length"]))
-    return json.loads(body.decode("utf-8"))
+    line = sys.stdin.buffer.readline()
+    if line == b"":
+        return None
+    return json.loads(line.decode("utf-8"))
 
 
 def write_message(message):
     body = json.dumps(message).encode("utf-8")
-    sys.stdout.buffer.write(f"Content-Length: {len(body)}\r\n\r\n".encode("ascii"))
-    sys.stdout.buffer.write(body)
+    sys.stdout.buffer.write(body + b"\n")
     sys.stdout.buffer.flush()
 
 

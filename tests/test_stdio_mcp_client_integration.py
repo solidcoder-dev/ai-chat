@@ -40,7 +40,7 @@ def fake_client():
     return StdioMcpClient(config, request_timeout_seconds=5)
 
 
-def test_stdio_mcp_client_speaks_mcp_stdio_protocol(tmp_path):
+def test_stdio_mcp_client_uses_newline_delimited_json_transport(tmp_path):
     workspace_file = tmp_path / "notes.txt"
     workspace_file.write_text("hello from fake mcp", encoding="utf-8")
     client = fake_client()

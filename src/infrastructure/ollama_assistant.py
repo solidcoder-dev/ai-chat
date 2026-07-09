@@ -8,9 +8,21 @@ import ollama
 
 from ..application.dtos.assistant_request import AssistantRequest
 from ..application.dtos.assistant_response import AssistantResponse
-from ..application.errors import LlmProviderError, ModelNotAvailableError
+from ..application.dtos.tool_spec import ToolSpec
+from ..application.errors import (
+    LlmProviderError,
+    ModelNotAvailableError,
+    ToolCallingNotSupportedError,
+)
 from ..application.ports.assistant import Assistant
-from ..domain.message import Message, TextMessage, ToolResultMessage
+from ..domain.message import (
+    Content,
+    Message,
+    TextContent,
+    TextMessage,
+    ToolCallMessage,
+    ToolResultMessage,
+)
 from .ollama_tool_mapper import OllamaToolMapper
 
 
@@ -28,7 +40,7 @@ def _default_client_factory(host: Optional[str]) -> ollama.Client:
 class OllamaAssistant(Assistant):
     def __init__(
         self,
-        model: str = "llama3",
+        model: str,
         host: Optional[str] = None,
         client_factory: Optional[Callable[[Optional[str]], ollama.Client]] = None,
     ) -> None:
@@ -36,9 +48,13 @@ class OllamaAssistant(Assistant):
         factory = client_factory or _default_client_factory
         self._client = factory(host)
 
+    @property
+    def model(self) -> str:
+        return self._model
+
     def infer(self, request: AssistantRequest) -> AssistantResponse:
-        messages = self._build_messages(request.messages)
         tool_mapper = OllamaToolMapper(request.tools)
+        messages = self._build_messages(request.messages, tool_mapper)
         try:
             response = self._client.chat(
                 model=self._model,
@@ -48,6 +64,8 @@ class OllamaAssistant(Assistant):
         except ollama.ResponseError as exc:
             message = str(exc)
             status_code = getattr(exc, "status_code", None)
+            if self._is_tool_support_error(message, status_code):
+                raise ToolCallingNotSupportedError(self._model) from exc
             if status_code == 404 and "model" in message.lower() and "not found" in message.lower():
                 raise ModelNotAvailableError(self._model, message) from exc
             raise LlmProviderError("ollama", message, status_code) from exc
@@ -61,9 +79,15 @@ class OllamaAssistant(Assistant):
                 content="",
                 tool_name=tool_mapper.to_internal_name(function["name"]),
                 tool_args=self._tool_arguments(function.get("arguments", {})),
+                tool_call_id=self._tool_call_id(tool_call),
             )
 
         content = response["message"]["content"]
+        if self._is_empty_message(content) and self._contains_tool_round_trip(request.messages):
+            raise LlmProviderError(
+                "ollama",
+                "empty assistant response after tool execution",
+            )
         return AssistantResponse(
             kind="message",
             content=content,
@@ -71,25 +95,106 @@ class OllamaAssistant(Assistant):
             tool_args={},
         )
 
-    def _build_messages(self, messages: Iterable[Message]) -> List[dict]:
+    def assert_tool_calling_supported(self) -> None:
+        self.infer(
+            AssistantRequest(
+                messages=[
+                    Message(
+                        type="message",
+                        role="user",
+                        created_at="1970-01-01T00:00:00Z",
+                        content=Content(
+                            items=[
+                                TextMessage(
+                                    type="text",
+                                    renderable=True,
+                                    data=TextContent(text="Confirm tool support."),
+                                )
+                            ]
+                        ),
+                        _meta=None,
+                    )
+                ],
+                tools=[
+                    ToolSpec(
+                        name="tool_support_probe",
+                        description="Checks whether the model accepts tool definitions.",
+                        parameters_schema={
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": False,
+                        },
+                    )
+                ],
+            )
+        )
+
+    def _build_messages(
+        self,
+        messages: Iterable[Message],
+        tool_mapper: OllamaToolMapper,
+    ) -> List[dict]:
         rendered = []
+        tool_names_by_call_id: dict[str, str] = {}
         for message in messages:
-            rendered.append(
-                {
-                    "role": message.role,
-                    "content": self._render_message_content(message),
-                }
+            rendered.extend(
+                self._render_message_parts(
+                    message,
+                    tool_mapper=tool_mapper,
+                    tool_names_by_call_id=tool_names_by_call_id,
+                )
             )
         return rendered
 
-    def _render_message_content(self, message: Message) -> str:
-        parts = []
+    def _render_message_parts(
+        self,
+        message: Message,
+        *,
+        tool_mapper: OllamaToolMapper,
+        tool_names_by_call_id: dict[str, str],
+    ) -> List[dict]:
+        parts: List[dict] = []
         for item in message.content.items:
             if isinstance(item, TextMessage):
-                parts.append(item.data.text)
+                parts.append(
+                    {
+                        "role": message.role,
+                        "content": item.data.text,
+                    }
+                )
+            if isinstance(item, ToolCallMessage):
+                provider_name = tool_mapper.to_provider_name(item.data.name)
+                tool_names_by_call_id[item.data.call_id] = provider_name
+                parts.append(
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "function": {
+                                    "name": provider_name,
+                                    "arguments": item.data.args,
+                                }
+                            }
+                        ],
+                    }
+                )
             if isinstance(item, ToolResultMessage):
-                parts.append(json.dumps({"tool_result": item.data.result}))
-        return "\n".join(parts)
+                tool_name = tool_names_by_call_id.get(item.data.call_id)
+                parts.append(
+                    {
+                        "role": "tool",
+                        "content": self._render_tool_result(item.data),
+                        "tool_name": tool_name,
+                    }
+                )
+        return parts
+
+    @staticmethod
+    def _render_tool_result(tool_result) -> str:
+        if tool_result.status == "error":
+            return json.dumps({"error": tool_result.error or {}})
+        return json.dumps(tool_result.result)
 
     @staticmethod
     def _first_tool_call(response) -> dict | None:
@@ -103,3 +208,26 @@ class OllamaAssistant(Assistant):
         if isinstance(arguments, str):
             return json.loads(arguments)
         return arguments
+
+    @staticmethod
+    def _tool_call_id(tool_call: dict) -> str | None:
+        call_id = tool_call.get("id")
+        if isinstance(call_id, str) and call_id:
+            return call_id
+        return None
+
+    @staticmethod
+    def _is_tool_support_error(message: str, status_code: int | None) -> bool:
+        return status_code == 400 and "does not support tools" in message.lower()
+
+    @staticmethod
+    def _is_empty_message(content: str | None) -> bool:
+        return content is None or content.strip() == ""
+
+    @staticmethod
+    def _contains_tool_round_trip(messages: Iterable[Message]) -> bool:
+        for message in messages:
+            for item in message.content.items:
+                if isinstance(item, ToolResultMessage):
+                    return True
+        return False

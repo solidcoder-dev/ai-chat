@@ -15,6 +15,21 @@ class ModelNotAvailableError(InfrastructureError):
         self.model = model
 
 
+class ToolCallingNotSupportedError(InfrastructureError):
+    def __init__(self, model: str) -> None:
+        super().__init__(
+            "\n".join(
+                [
+                    f"Selected model '{model}' does not support tool calling.",
+                    "Use a tool-capable model, for example:",
+                    "  ollama pull llama3.1:8b",
+                    "  python3 main.py --mode coding --workspace . --model llama3.1:8b",
+                ]
+            )
+        )
+        self.model = model
+
+
 class LlmProviderError(InfrastructureError):
     def __init__(self, provider: str, message: str, status_code: Optional[int] = None) -> None:
         status = f" (status {status_code})" if status_code is not None else ""

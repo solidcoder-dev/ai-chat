@@ -79,7 +79,7 @@ def _seed_chat_dependencies(engine, *, user_id: str, prompt_id: str) -> None:
         )
 
 
-def test_e2e_chat_flow_with_tools_and_postgres_repo():
+def test_e2e_chat_flow_with_tools_and_postgres_repo(docker_available_or_skip):
     with PostgresContainer("postgres:16-alpine") as postgres:
         engine = create_engine(postgres.get_connection_url(), future=True)
         _seed(engine)

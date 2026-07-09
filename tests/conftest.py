@@ -22,7 +22,15 @@ def _docker_available() -> bool:
 
 
 @pytest.fixture(scope="session")
+def docker_available_or_skip():
+    if not _docker_available():
+        pytest.skip("Docker not available")
+
+
+@pytest.fixture(scope="session")
 def ollama_container():
+    if not _docker_available():
+        pytest.skip("Docker not available")
     return (
         DockerContainer("ollama/ollama:latest")
         .with_command("serve")
@@ -34,8 +42,6 @@ def ollama_container():
 @pytest.fixture(scope="session")
 def ollama_ready(ollama_container):
     model_name = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
-    if not _docker_available():
-        pytest.skip("Docker not available")
 
     with ollama_container as ollama:
         port = ollama.get_exposed_port(11434)
